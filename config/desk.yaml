@@ -1,0 +1,97 @@
+# Desk policy as data. Hashed at boot and published at GET /v1. Code changes behaviour; this file
+# changes policy. A change here goes through review like a code change, never through an admin screen.
+
+programme:
+  name: XE bug bounty
+  rules_url: https://test.network/bounty
+  # Every actionable report maps to a ticket in the CTO's internal tracker; the desk links, never writes.
+  internal_tracker_name: internal
+
+# Severity order, highest first. Ceilings are the targeted amounts on the rules page, in whole XE;
+# the desk stores awards in micro-units (1 XE = 1,000,000). "none" is for notices and support.
+tiers:
+  critical: { label: Critical, ceiling_xe: 50000 }
+  severe:   { label: Severe,   ceiling_xe: 25000 }
+  high:     { label: High,     ceiling_xe: 10000 }
+  medium:   { label: Medium,   ceiling_xe: 2500 }
+  minor:    { label: Minor,    ceiling_xe: 650 }
+  none:     { label: None,     ceiling_xe: 0 }
+
+areas:
+  consensus:      Consensus
+  p2p-sync:       P2P / sync
+  node-api:       Node / API
+  leasing-ledger: Leasing / ledger
+  dao-harness:    DAO harness
+  sdk-docs-web:   SDK / docs / web
+  ops-testnet:    Ops / testnet
+  other:          Other
+
+verdicts:
+  valid:        Valid
+  likely-valid: Likely valid
+  design-gap:   Design gap
+  duplicate:    Duplicate
+  notice:       Notice
+  support:      Support
+  invalid:      Invalid
+  out-of-scope: Out of scope
+
+gates:
+  before: Before mainnet
+  decide: Decide before mainnet
+  later:  Can follow launch
+
+# The two clocks from BOUNTY_TRIAGE.md. effort_agent is derived from effort_eng by this table.
+effort_bands:
+  "<1h":    { band: A, engineer: "<1h",   agent: "5–10 min",  engineer_hours: 0.5,  agent_hours: 0.125 }
+  "1-4h":   { band: B, engineer: "1–4h",  agent: "15–45 min", engineer_hours: 2.5,  agent_hours: 0.5 }
+  "half-1d": { band: C, engineer: "½–1d", agent: "1–2 h",     engineer_hours: 6,    agent_hours: 1.5 }
+  "1-3d":   { band: D, engineer: "1–3d",  agent: "3–6 h",     engineer_hours: 16,   agent_hours: 4.5 }
+  "3-5d":   { band: E, engineer: "3–5d",  agent: "1–2 d",     engineer_hours: 32,   agent_hours: 12 }
+  "1-2w":   { band: F, engineer: "1–2w",  agent: "3–5 d",     engineer_hours: 60,   agent_hours: 32 }
+  "design": { band: Design, engineer: "—", agent: "—",         engineer_hours: 0,    agent_hours: 0 }
+
+# Repositories the desk imports from and mirrors to. The first is the bounty's reporting repo.
+github:
+  repos:
+    - xeprotocol/xe
+    - xeprotocol/dao
+    - xeprotocol/sdk
+  # Status → label. The tool's labels are the only labels; anything else on an issue is removed on first touch.
+  labels:
+    triaging:   { name: triaged,     color: "6e7781", description: "Read by the desk; assessment pending" }
+    needs-info: { name: needs-repro, color: "e4b400", description: "Needs a reproduction or more detail" }
+    accepted:   { name: accepted,    color: "1a7f37", description: "Accepted; fix tracked internally" }
+    fixing:     { name: fixing,      color: "0969da", description: "A fix is in progress" }
+    patched:    { name: patched,     color: "8250df", description: "Fix merged; see the reply for the PR" }
+    disclosed:  { name: disclosed,   color: "8250df", description: "Private report, now public" }
+    awarded:    { name: awarded,     color: "ff6900", description: "Award set; paid at genesis" }
+    paid:       { name: paid,        color: "ff6900", description: "Paid" }
+    closed:
+      duplicate:    { name: duplicate,    color: "cfd3d7", description: "Duplicate of an earlier report" }
+      invalid:      { name: invalid,      color: "cfd3d7", description: "Not a bug, or not reproducible" }
+      out-of-scope: { name: out-of-scope, color: "cfd3d7", description: "Outside the programme's scope" }
+      withdrawn:    { name: withdrawn,    color: "cfd3d7", description: "Withdrawn by the reporter" }
+      answered:     { name: answered,     color: "cfd3d7", description: "Answered; no code change" }
+      stale:        { name: stale,        color: "cfd3d7", description: "No response; closed" }
+  # Shown once on an issue when the desk first touches it, if the tool is public.
+  first_touch_note: true
+
+# The engineering tracker: the CTO's own tickets. Private; the desk reads it with GITHUB_TOKEN and
+# never writes to it. An internal ticket names the public report(s) it covers in its title or body
+# with the public repo's short name and number, e.g. "security: bounty bundle xe#8" → xeprotocol/xe#8.
+# Several public reports may share one internal ticket. Reading its state moves the public ticket:
+# open → accepted, closed as completed → patched (and into the outbox), closed as not planned → a note.
+internal:
+  repo: xeprotocol/core
+  aliases: { xe: xeprotocol/xe, dao: xeprotocol/dao, sdk: xeprotocol/sdk }
+
+# The token that owns the imported triage notes. Created by `desk import-triage` if absent.
+triage_agent:
+  model_id: claude-fable-5.1
+  label: triage import, 28 October 2026
+
+anchor:
+  key_prefix: desk.anchor
+  every_days: 7

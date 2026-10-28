@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Users{% endblock %}
+{% block content %}
+<div class="tag"><span>Users</span></div>
+<h1>The team.</h1>
+<p class="sub">Roles: <code>reviewer</code> triages and replies; <code>tier</code> sets the assessed tier (the CTO and named delegates); <code>treasurer</code> sets and approves awards; <code>admin</code> manages users and anyone's tokens.</p>
+
+{% if is_admin %}
+<div class="card" style="margin-bottom:32px">
+  <h3>Add a person</h3>
+  <form class="block" id="user-form">
+    <div class="row">
+      <div style="flex:1; min-width:220px"><label>Email</label><input type="email" name="email" required></div>
+      <div style="flex:1; min-width:200px"><label>Name</label><input type="text" name="name"></div>
+    </div>
+    <label>Roles</label>
+    <div class="row">{% for r in ("reviewer", "tier", "treasurer", "admin") %}<label style="display:inline-flex; gap:6px; align-items:center; margin:0; text-transform:none; font:inherit; color:var(--fg)"><input type="checkbox" name="roles" value="{{ r }}" {{ "checked" if r == "reviewer" }}> {{ r }}</label>{% endfor %}</div>
+    <div class="row" style="margin-top:14px"><button type="submit" class="mini">Add and send invite</button></div>
+    <div class="msg" id="user-msg" style="display:none"></div>
+  </form>
+</div>
+{% endif %}
+
+<table>
+<thead><tr><th>Name</th><th>Email</th><th>Roles</th><th>Last sign-in</th><th></th></tr></thead>
+<tbody>
+{% for u in users %}
+<tr class="{{ 'mute' if not u.active }}" data-user="{{ u.id }}">
+  <td>{{ u.name }}</td><td>{{ u.email }}</td>
+  <td>{% for r in u.roles %}<span class="pill">{{ r }}</span> {% endfor %}{% if not u.active %}<span class="pill closed">inactive</span>{% endif %}</td>
+  <td class="num">{{ u.last_login_at|dt }}</td>
+  <td class="right">{% if is_admin %}<button class="ghost mini" type="button" data-invite="{{ u.id }}">Invite link</button> <button class="ghost mini" type="button" data-toggle-active="{{ u.id }}" data-active="{{ 'true' if u.active else 'false' }}">{{ "Deactivate" if u.active else "Reactivate" }}</button>{% endif %}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+<div class="msg" id="users-msg" style="display:none"></div>
+{% endblock %}

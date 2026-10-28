@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xe-desk"
+version = "0.1.0"
+description = "XE Desk: a ticket desk for the XE bug bounty and community support. Agents do the work in private, humans speak in public, reporters see their own case."
+readme = "README.md"
+license = { text = "GPL-3.0-or-later" }
+requires-python = ">=3.12"
+authors = [{ name = "XE Network" }]
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "pydantic>=2.8",
+  "pydantic-settings>=2.4",
+  "sqlalchemy[asyncio]>=2.0.32",
+  "asyncpg>=0.29",
+  "alembic>=1.13",
+  "psycopg[binary]>=3.2",
+  "httpx>=0.27",
+  "jinja2>=3.1",
+  "pyyaml>=6.0",
+  "pynacl>=1.5",
+  "python-multipart>=0.0.9",
+  "typer>=0.12",
+  "markdown-it-py>=3.0",
+  "markdownify>=1.1",
+  "beautifulsoup4>=4.12",
+  "sse-starlette>=2.1",
+  # beyond the harness list; justified in docs/DESK_BRIEF.md §14
+  "webauthn>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  "pytest-asyncio>=0.23",
+  "ruff>=0.5",
+]
+
+[project.scripts]
+desk = "desk.cli:app"
+
+[tool.setuptools.packages.find]
+include = ["desk*", "xe*"]
+
+[tool.setuptools.package-data]
+desk = ["templates/*.html", "static/*"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

@@ -1,0 +1,397 @@
+"""Server-rendered pages. One app behind two front doors: the bounty host and the support host show
+the same templates with the kind preselected. Writes happen from the pages' small scripts through the
+JSON API with the session cookie and CSRF header, never through forms."""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from pathlib import Path
+
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+from markdown_it import MarkdownIt
+from markupsafe import Markup, escape
+from sqlalchemy import select
+
+from . import __version__
+from .auth import resolve
+from .authz import ANON, Principal, can
+from .context import get_context
+from .db import session
+from .log import EventLog, event_to_dict
+from .mirror import build_llms_txt, md_path
+from .models import Reporter
+from .services import proposals as psvc
+from .services import thread, users
+from .services import tickets as tsvc
+from .services.tickets import Filters
+
+router = APIRouter(include_in_schema=False)
+templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
+_md = MarkdownIt("commonmark", {"html": False, "linkify": False}).enable("table")
+
+
+def _fmt_ns(ns: int | None) -> str:
+    return datetime.fromtimestamp(ns / 1e9, tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC") if ns else ""
+
+
+def _fmt_dt(dt: datetime | None, with_time: bool = True) -> str:
+    if not dt:
+        return ""
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC" if with_time else "%Y-%m-%d")
+
+
+def _short(h: str | None, n: int = 10) -> str:
+    return (h[:n] + "…") if h and len(h) > n else (h or "")
+
+
+def _xe(micro) -> str:
+    if micro is None:
+        return "—"
+    whole, frac = divmod(int(micro), 1_000_000)
+    return f"{whole:,}" if frac == 0 else f"{whole:,}.{str(frac).rstrip('0')}"
+
+
+def _render_md(text: str | None) -> Markup:
+    """Reporter text rendered with HTML disabled; links are rel=nofollow via a post-pass."""
+    html = _md.render(text or "")
+    return Markup(html.replace("<a href=", '<a rel="nofollow noopener" target="_blank" href='))
+
+
+templates.env.filters["ns"] = _fmt_ns
+templates.env.filters["dt"] = _fmt_dt
+templates.env.filters["day"] = lambda d: _fmt_dt(d, False)
+templates.env.filters["short"] = _short
+templates.env.filters["xe"] = _xe
+templates.env.filters["md"] = _render_md
+templates.env.filters["md_path"] = md_path
+templates.env.filters["esc"] = escape
+
+
+def site_for(request: Request) -> str:
+    host = request.headers.get("host", "").split(":")[0].lower()
+    s = get_context().settings
+    return (
+        "support" if host and host == s.support_host.lower() and s.support_host != s.bounty_host else "bounty"
+    )
+
+
+async def principal(db, request: Request) -> tuple[Principal, str]:
+    try:
+        a = await resolve(db, request)
+    except Exception:
+        return ANON, ""
+    return a.principal, (a.session.csrf if a.session else "")
+
+
+def render(request: Request, name: str, ctx: dict, status_code: int = 200) -> HTMLResponse:
+    c = get_context()
+    p: Principal = ctx.get("p") or ANON
+    base = {
+        "request": request,
+        "copy": c.config.copy_public,
+        "cfg": c.config,
+        "badge": c.node.badge,
+        "network_id": c.node.network_id,
+        "version": __version__,
+        "hosts": c.settings.hosts,
+        "scheme": c.settings.scheme,
+        "site": site_for(request),
+        "p": p,
+        "team": p.is_team,
+        "csrf": ctx.get("csrf", ""),
+        "can_tier": can(p, "tier"),
+        "can_award": can(p, "award"),
+        "is_admin": can(p, "admin"),
+        "path": request.url.path,
+    }
+    return templates.TemplateResponse(request, name, {**base, **ctx}, status_code=status_code)
+
+
+@router.get("/llms.txt", response_class=PlainTextResponse)
+async def llms_txt(request: Request):
+    c = get_context()
+    base = f"{c.settings.scheme}://{c.settings.hosts[site_for(request)]}"
+    return PlainTextResponse(
+        build_llms_txt(c.config, base, c.node.network_id), media_type="text/plain; charset=utf-8"
+    )
+
+
+# ---- lists ------------------------------------------------------------------------------------------
+
+
+@router.get("/", response_class=HTMLResponse)
+async def home(
+    request: Request,
+    status: str = "open",
+    area: str | None = None,
+    gate: str | None = None,
+    tier: str | None = None,
+    verdict: str | None = None,
+    pending: bool | None = None,
+    q: str | None = None,
+    sort: str = "severity",
+    kind: str | None = None,
+):
+    c = get_context()
+    kind = kind or site_for(request)
+    async with session() as db:
+        p, csrf = await principal(db, request)
+        f = Filters(
+            kind=kind,
+            status=status,
+            area=area,
+            gate=gate,
+            tier=tier,
+            verdict=verdict,
+            pending=pending,
+            q=q,
+            sort=sort,
+            limit=300,
+        )
+        rows = await tsvc.list_tickets(db, c.config, p, f)
+        ids = [t.id for t in rows]
+        prs = await tsvc.patch_counts(db, ids)
+        pend = await tsvc.pending_counts(db, ids) if p.is_team else {}
+        counts = await tsvc.counts(db, p, kind)
+        head = await EventLog.head(db)
+    return render(
+        request,
+        "list.html",
+        {
+            "p": p,
+            "csrf": csrf,
+            "tickets": rows,
+            "prs": prs,
+            "pend": pend,
+            "counts": counts,
+            "f": f,
+            "kind": kind,
+            "head": head,
+            "title": c.config.copy_public.get("bounty_name" if kind == "bounty" else "support_name"),
+        },
+    )
+
+
+@router.get("/bounty", response_class=HTMLResponse)
+async def bounty_list(request: Request):
+    return RedirectResponse("/?kind=bounty", status_code=302)
+
+
+@router.get("/support", response_class=HTMLResponse)
+async def support_list(request: Request):
+    return RedirectResponse("/?kind=support", status_code=302)
+
+
+# ---- a ticket ---------------------------------------------------------------------------------------
+
+
+@router.get("/bounty/{tid}", response_class=HTMLResponse)
+@router.get("/support/{tid}", response_class=HTMLResponse)
+async def ticket_page(request: Request, tid: str):
+    c = get_context()
+    async with session() as db:
+        p, csrf = await principal(db, request)
+        t = await tsvc.get_for(db, p, tid)
+        body = tsvc.body_for(c, t) if t.visibility == "public" or can(p, "read:private", t) else None
+        if t.visibility == "private" and body is not None:
+            await c.events.append(db, "ticket.read", p.actor, {"ticket": t.id}, ref=t.id, public=False)
+            await db.commit()
+        messages = [(m, thread.message_body(c, t, m)) for m in await thread.messages_for(db, t)]
+        patches = await thread.patches_for(db, t)
+        notes = await thread.notes_for(db, t) if can(p, "read:notes", t) else []
+        proposals = await psvc.pending_for(db, t) if can(p, "read:notes", t) else []
+        replies = await thread.replies_for(db, t) if p.is_team else []
+        dup = await tsvc.get(db, t.duplicate_of) if t.duplicate_of else None
+        events = await EventLog.page(db, 0, 50, ref=t.id, public_only=not can(p, "read:private", t))
+        team_users = await users.list_users(db) if p.is_team else []
+        reporter = (
+            (await db.execute(select(Reporter).where(Reporter.id == t.reporter_id))).scalar_one_or_none()
+            if t.reporter_id
+            else None
+        )
+    return render(
+        request,
+        "ticket.html",
+        {
+            "p": p,
+            "csrf": csrf,
+            "t": t,
+            "body": body,
+            "messages": messages,
+            "patches": patches,
+            "notes": notes,
+            "proposals": proposals,
+            "replies": replies,
+            "dup": dup,
+            "events": events,
+            "team_users": team_users,
+            "reporter": reporter,
+            "url": tsvc.ticket_url(c, t),
+            "internal_url": c.settings.internal_url(t.internal_ref),
+            "tier_fields": ("assessed_tier",),
+        },
+    )
+
+
+# ---- public pages -----------------------------------------------------------------------------------
+
+
+@router.get("/scope", response_class=HTMLResponse)
+async def scope(request: Request):
+    c = get_context()
+    async with session() as db:
+        p, csrf = await principal(db, request)
+    return render(
+        request,
+        "scope.html",
+        {"p": p, "csrf": csrf, "prog": c.config.copy_programme, "programme": c.config.programme},
+    )
+
+
+@router.get("/leaderboard", response_class=HTMLResponse)
+async def leaderboard(request: Request):
+    async with session() as db:
+        p, csrf = await principal(db, request)
+        rows = await tsvc.leaderboard(db)
+    return render(request, "leaderboard.html", {"p": p, "csrf": csrf, "rows": rows})
+
+
+@router.get("/log", response_class=HTMLResponse)
+async def log_page(request: Request, offset: int = 0, kind: str | None = None, ref: str | None = None):
+    async with session() as db:
+        p, csrf = await principal(db, request)
+        rows = await EventLog.page(
+            db, offset, 100, kind=kind, ref=ref, public_only=not can(p, "read:private")
+        )
+        head = await EventLog.head(db)
+    return render(
+        request,
+        "log.html",
+        {"p": p, "csrf": csrf, "events": rows, "offset": offset, "head": head, "kind": kind, "ref": ref},
+    )
+
+
+@router.get("/log/{index}", response_class=HTMLResponse)
+async def log_entry(request: Request, index: int):
+    async with session() as db:
+        p, csrf = await principal(db, request)
+        ev = await EventLog.get(db, index)
+        if ev is None or (not ev.public and not can(p, "read:private")):
+            raise HTTPException(404, "no such entry")
+    return render(request, "log_entry.html", {"p": p, "csrf": csrf, "ev": ev, "d": event_to_dict(ev)})
+
+
+@router.get("/live", response_class=HTMLResponse)
+async def live(request: Request):
+    async with session() as db:
+        p, csrf = await principal(db, request)
+        head = await EventLog.head(db)
+    return render(request, "live.html", {"p": p, "csrf": csrf, "head": head})
+
+
+# ---- team pages -------------------------------------------------------------------------------------
+
+
+@router.get("/team", response_class=HTMLResponse)
+async def team_home(request: Request):
+    return RedirectResponse("/?status=open&pending=true", status_code=302)
+
+
+@router.get("/team/login", response_class=HTMLResponse)
+async def login(request: Request, next: str = "/"):
+    async with session() as db:
+        p, csrf = await principal(db, request)
+    if p.is_team:
+        return RedirectResponse(next if next.startswith("/") else "/", status_code=302)
+    return render(request, "team/login.html", {"p": p, "csrf": csrf, "next": next})
+
+
+@router.get("/team/invite/{token}", response_class=HTMLResponse)
+async def invite(request: Request, token: str):
+    async with session() as db:
+        p, csrf = await principal(db, request)
+    return render(request, "team/invite.html", {"p": p, "csrf": csrf, "token": token})
+
+
+@router.get("/team/account", response_class=HTMLResponse)
+async def account(request: Request):
+    async with session() as db:
+        p, csrf = await principal(db, request)
+        if not p.is_team:
+            return RedirectResponse("/team/login?next=/team/account", status_code=302)
+        keys = await users.passkeys_for(db, p.user)
+    return render(
+        request, "team/account.html", {"p": p, "csrf": csrf, "keys": keys, "totp": bool(p.user.totp_secret)}
+    )
+
+
+@router.get("/team/tokens", response_class=HTMLResponse)
+async def tokens(request: Request):
+    async with session() as db:
+        p, csrf = await principal(db, request)
+        if not p.is_team:
+            return RedirectResponse("/team/login?next=/team/tokens", status_code=302)
+        rows = await users.tokens_for(db, None if can(p, "admin") else p.user)
+        owners = {u.id: u for u in await users.list_users(db)}
+    return render(request, "team/tokens.html", {"p": p, "csrf": csrf, "tokens": rows, "owners": owners})
+
+
+@router.get("/team/users", response_class=HTMLResponse)
+async def team_users(request: Request):
+    async with session() as db:
+        p, csrf = await principal(db, request)
+        if not p.is_team:
+            return RedirectResponse("/team/login?next=/team/users", status_code=302)
+        rows = await users.list_users(db)
+    return render(request, "team/users.html", {"p": p, "csrf": csrf, "users": rows})
+
+
+@router.get("/team/release", response_class=HTMLResponse)
+async def release(request: Request):
+    c = get_context()
+    async with session() as db:
+        p, csrf = await principal(db, request)
+        if not p.is_team:
+            return RedirectResponse("/team/login?next=/team/release", status_code=302)
+        groups = await tsvc.release_view(db, c.config, p)
+        ids = [t.id for ts in groups.values() for t in ts]
+        prs = await tsvc.patch_counts(db, ids)
+    hours = {}
+    for area, ts in groups.items():
+        eng = sum(
+            c.config.effort_hours(t.effort_eng)[0]
+            for t in ts
+            if t.status not in ("patched", "disclosed", "awarded", "paid", "closed")
+        )
+        agent = sum(
+            c.config.effort_hours(t.effort_eng)[1]
+            for t in ts
+            if t.status not in ("patched", "disclosed", "awarded", "paid", "closed")
+        )
+        hours[area] = (eng, agent)
+    return render(
+        request,
+        "team/release.html",
+        {
+            "p": p,
+            "csrf": csrf,
+            "groups": groups,
+            "prs": prs,
+            "hours": hours,
+            "total": (sum(h[0] for h in hours.values()), sum(h[1] for h in hours.values())),
+        },
+    )
+
+
+@router.get("/team/outbox", response_class=HTMLResponse)
+async def outbox(request: Request):
+    c = get_context()
+    async with session() as db:
+        p, csrf = await principal(db, request)
+        if not p.is_team:
+            return RedirectResponse("/team/login?next=/team/outbox", status_code=302)
+        rows = await tsvc.outbox(db, c.config, p)
+    return render(request, "team/outbox.html", {"p": p, "csrf": csrf, "tickets": rows})

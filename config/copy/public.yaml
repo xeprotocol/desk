@@ -1,0 +1,76 @@
+# Public register: portal copy, bot messages, reply templates. The copy lint (desk copy-lint) fails the
+# build if any kill-list phrase appears here or in a public template. Reply templates must never
+# promise an award; that is the kill list's first entry.
+
+site_name: XE Desk
+bounty_name: XE Bounty
+support_name: XE Support
+headline: Find a bug. Earn XE.
+sub: >-
+  Reports from the bug bounty, in one place: what has been read, what it was assessed as, what is
+  fixed, and what is still open. Every ticket is also markdown; every change is in a signed log.
+footer: XE Network
+footer_line: The bounty desk for the agent-native network, run in the open.
+kicker: Bounty
+punchline: Read in private. Answered in public. Paid at genesis.
+
+labels:
+  tickets: Tickets
+  bounty: Bounty
+  support: Support
+  leaderboard: Leaderboard
+  log: Log
+  scope: Scope
+  release: Release view
+  outbox: Outbox
+  team: Team
+  open: Open
+  closed: Closed
+  private: Private
+  public: Public
+  new: New
+  triaging: Triaging
+  needs-info: Needs info
+  accepted: Accepted
+  fixing: Fixing
+  patched: Patched
+  disclosed: Disclosed
+  awarded: Awarded
+  paid: Paid
+
+notices:
+  private_ticket: >-
+    This report is private. Its body and attachments are sealed; only named readers can open them,
+    and every opening is in the log.
+  in_scope: >-
+    This desk is in scope for the bounty from the day it went public. If you find something in it,
+    file it like anything else.
+  no_poc_in_channels: >-
+    Never post a proof of concept into Discord or Telegram. Use the private filing form; the thread
+    is for the conversation, not the exploit.
+
+reply_templates:
+  patched: |-
+    Thanks for the report. This is fixed in {patch_refs}. The desk entry is {ticket_url}. If you can,
+    re-run your reproduction against the next testnet build and say so here; if it still reproduces,
+    reopen with what you saw.
+  duplicate: |-
+    Thanks. This is the same finding as {duplicate_url}, which was filed first; the programme pays the
+    first verifiable submission, so this one closes as a duplicate. If you believe it is a different
+    bug, reply with what differs and we will look again.
+  accepted: |-
+    Read and accepted at {tier}. It is tracked internally and the fix will land in a public PR; this
+    issue is updated when it does. The desk entry is {ticket_url}.
+  needs_info: |-
+    Read, but not yet reproducible from what is here. Could you add {what}? The desk entry is {ticket_url}.
+  invalid: |-
+    Read. {reason} Closing; reply here if there is a reproduction we have missed.
+  notice: |-
+    Noted, and thank you for flagging the campaign ahead of time. Nothing to action from this one.
+
+bots:
+  created: "Logged as {ticket_id}. Follow it at {ticket_url}. Replies here go to the same place."
+  converted: >-
+    This looks like a bug rather than a question, so it has moved to the bounty queue as {ticket_id}.
+    Add a payout address at {ticket_url}. Do not post a proof of concept here.
+  closed: "Closed: {reason}."

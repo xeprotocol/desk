@@ -1,0 +1,474 @@
+"""Who is asking.
+
+Three ways in, none of them a password:
+
+  team      a passkey (WebAuthn, RP id shared by both front doors) or a TOTP code; the session is a
+            random cookie whose hash lives in `sessions`, so it can be revoked and a database read
+            never yields a usable cookie. First sign-in is a one-time invite link.
+  agent     a bearer token, `desk_...`, bound to a human owner, a model id, scopes and an expiry.
+  reporter  (release 2) GitHub OAuth, an email magic link, or an XE key signature in the harness's
+            signed-request shape under a desk domain string. The verifier is here; the routes are not yet.
+
+Team writes from the browser carry the session's CSRF token in `X-Desk-CSRF`; cookies are SameSite=Lax.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import base64
+import hashlib
+import hmac
+import json
+import logging
+import secrets
+import smtplib
+import struct
+import time
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from email.message import EmailMessage
+from typing import Any
+
+from fastapi import HTTPException, Request, Response
+from pydantic import BaseModel, Field
+from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from xe.keys import KeyError_, derive_address, verify_hex_signature
+
+from .authz import Principal
+from .canonical import digest
+from .models import AGENT_SCOPES, AgentToken, Challenge, Invite, Passkey, SeenSignature, Session, User
+from .settings import Settings
+
+log = logging.getLogger("desk.auth")
+
+SESSION_COOKIE = "desk_session"
+SESSION_TTL = timedelta(days=14)
+INVITE_TTL = timedelta(days=7)
+MAGIC_TTL = timedelta(minutes=15)
+CHALLENGE_TTL = timedelta(minutes=5)
+TOKEN_PREFIX = "desk_"
+MAX_SKEW_NS = 10 * 60 * 1_000_000_000
+
+
+def now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def new_secret(nbytes: int = 32) -> str:
+    return secrets.token_urlsafe(nbytes)
+
+
+def hash_secret(raw: str) -> str:
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+# ---- sessions ---------------------------------------------------------------------------------------
+
+
+async def create_session(db: AsyncSession, user: User, request: Request | None = None) -> tuple[Session, str]:
+    raw = new_secret()
+    s = Session(
+        token_hash=hash_secret(raw),
+        user_id=user.id,
+        csrf=new_secret(24),
+        expires_at=now() + SESSION_TTL,
+        ip=client_ip(request) if request else "",
+        user_agent=(request.headers.get("user-agent", "")[:256] if request else ""),
+    )
+    db.add(s)
+    user.last_login_at = now()
+    await db.flush()
+    return s, raw
+
+
+async def session_from_request(db: AsyncSession, request: Request) -> tuple[Session, User] | None:
+    raw = request.cookies.get(SESSION_COOKIE)
+    if not raw:
+        return None
+    s = (await db.execute(select(Session).where(Session.token_hash == hash_secret(raw)))).scalar_one_or_none()
+    if s is None or s.expires_at < now():
+        return None
+    u = (await db.execute(select(User).where(User.id == s.user_id))).scalar_one_or_none()
+    if u is None or not u.active:
+        return None
+    return s, u
+
+
+async def end_session(db: AsyncSession, request: Request) -> None:
+    raw = request.cookies.get(SESSION_COOKIE)
+    if raw:
+        await db.execute(delete(Session).where(Session.token_hash == hash_secret(raw)))
+
+
+def set_session_cookie(response: Response, raw: str, settings: Settings) -> None:
+    response.set_cookie(
+        SESSION_COOKIE,
+        raw,
+        max_age=int(SESSION_TTL.total_seconds()),
+        httponly=True,
+        samesite="lax",
+        secure=settings.scheme == "https",
+        path="/",
+    )
+
+
+def clear_session_cookie(response: Response) -> None:
+    response.delete_cookie(SESSION_COOKIE, path="/")
+
+
+def client_ip(request: Request | None) -> str:
+    """Caddy sets X-Forwarded-For with the client first; uvicorn's proxy-headers middleware has already
+    rewritten request.client from it. We never read the header ourselves (the #81 lesson)."""
+    if request is None or request.client is None:
+        return ""
+    return request.client.host or ""
+
+
+def check_csrf(request: Request, session: Session) -> None:
+    sent = request.headers.get("x-desk-csrf", "")
+    if not sent or not hmac.compare_digest(sent, session.csrf):
+        raise HTTPException(403, "missing or stale CSRF token; reload the page")
+
+
+# ---- invites and magic links ------------------------------------------------------------------------
+
+
+async def create_invite(db: AsyncSession, user: User, purpose: str = "invite") -> str:
+    raw = new_secret()
+    ttl = INVITE_TTL if purpose == "invite" else MAGIC_TTL
+    db.add(Invite(token_hash=hash_secret(raw), user_id=user.id, purpose=purpose, expires_at=now() + ttl))
+    await db.flush()
+    return raw
+
+
+async def consume_invite(
+    db: AsyncSession, raw: str, purposes: tuple[str, ...] = ("invite", "magic-link")
+) -> User | None:
+    inv = (await db.execute(select(Invite).where(Invite.token_hash == hash_secret(raw)))).scalar_one_or_none()
+    if inv is None or inv.used_at is not None or inv.expires_at < now() or inv.purpose not in purposes:
+        return None
+    inv.used_at = now()
+    u = (await db.execute(select(User).where(User.id == inv.user_id))).scalar_one_or_none()
+    return u if u and u.active else None
+
+
+# ---- TOTP (RFC 6238, stdlib only) ---------------------------------------------------------------------
+
+
+def totp_new_secret() -> str:
+    return base64.b32encode(secrets.token_bytes(20)).decode("ascii")
+
+
+def totp_code(secret_b32: str, at: int | None = None, step: int = 30, digits: int = 6) -> str:
+    key = base64.b32decode(secret_b32.upper() + "=" * (-len(secret_b32) % 8))
+    counter = int((at if at is not None else time.time()) // step)
+    mac = hmac.new(key, struct.pack(">Q", counter), hashlib.sha1).digest()
+    offset = mac[-1] & 0x0F
+    code = (struct.unpack(">I", mac[offset : offset + 4])[0] & 0x7FFFFFFF) % (10**digits)
+    return str(code).zfill(digits)
+
+
+def totp_verify(secret_b32: str, code: str, window: int = 1) -> bool:
+    code = (code or "").strip().replace(" ", "")
+    if not code.isdigit():
+        return False
+    t = int(time.time())
+    return any(
+        hmac.compare_digest(totp_code(secret_b32, t + i * 30), code) for i in range(-window, window + 1)
+    )
+
+
+def totp_uri(secret_b32: str, email: str, issuer: str) -> str:
+    from urllib.parse import quote
+
+    return f"otpauth://totp/{quote(issuer)}:{quote(email)}?secret={secret_b32}&issuer={quote(issuer)}&digits=6&period=30"
+
+
+# ---- passkeys (WebAuthn) ----------------------------------------------------------------------------
+
+
+def _b64url(b: bytes) -> str:
+    return base64.urlsafe_b64encode(b).rstrip(b"=").decode("ascii")
+
+
+async def _store_challenge(db: AsyncSession, kind: str, challenge: bytes, user_id: int | None) -> str:
+    cid = new_secret(16)
+    db.add(
+        Challenge(id=cid, kind=kind, user_id=user_id, challenge=challenge, expires_at=now() + CHALLENGE_TTL)
+    )
+    await db.flush()
+    return cid
+
+
+async def _take_challenge(db: AsyncSession, cid: str, kind: str) -> Challenge:
+    ch = (await db.execute(select(Challenge).where(Challenge.id == cid))).scalar_one_or_none()
+    if ch is None or ch.kind != kind or ch.expires_at < now():
+        raise HTTPException(400, "challenge expired; try again")
+    await db.execute(delete(Challenge).where(Challenge.id == cid))
+    return ch
+
+
+async def passkey_begin_registration(db: AsyncSession, settings: Settings, user: User) -> dict:
+    from webauthn import generate_registration_options, options_to_json
+    from webauthn.helpers.structs import (
+        AuthenticatorSelectionCriteria,
+        PublicKeyCredentialDescriptor,
+        ResidentKeyRequirement,
+        UserVerificationRequirement,
+    )
+
+    existing = list((await db.execute(select(Passkey).where(Passkey.user_id == user.id))).scalars().all())
+    opts = generate_registration_options(
+        rp_id=settings.rp_id,
+        rp_name=settings.webauthn_rp_name,
+        user_id=str(user.id).encode("utf-8"),
+        user_name=user.email,
+        user_display_name=user.name or user.email,
+        authenticator_selection=AuthenticatorSelectionCriteria(
+            resident_key=ResidentKeyRequirement.PREFERRED,
+            user_verification=UserVerificationRequirement.PREFERRED,
+        ),
+        exclude_credentials=[PublicKeyCredentialDescriptor(id=p.credential_id) for p in existing],
+    )
+    cid = await _store_challenge(db, "register", opts.challenge, user.id)
+    return {"challenge_id": cid, "options": json.loads(options_to_json(opts))}
+
+
+async def passkey_finish_registration(
+    db: AsyncSession, settings: Settings, user: User, challenge_id: str, credential: Any, label: str = ""
+) -> Passkey:
+    from webauthn import verify_registration_response
+
+    ch = await _take_challenge(db, challenge_id, "register")
+    if ch.user_id != user.id:
+        raise HTTPException(400, "challenge belongs to another sign-in")
+    try:
+        v = verify_registration_response(
+            credential=credential,
+            expected_challenge=ch.challenge,
+            expected_rp_id=settings.rp_id,
+            expected_origin=settings.origins,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"passkey registration failed: {e}") from e
+    transports = []
+    if isinstance(credential, dict):
+        transports = list((credential.get("response") or {}).get("transports") or [])
+    pk = Passkey(
+        user_id=user.id,
+        credential_id=v.credential_id,
+        public_key=v.credential_public_key,
+        sign_count=v.sign_count,
+        transports=transports,
+        label=label[:128],
+    )
+    db.add(pk)
+    await db.flush()
+    return pk
+
+
+async def passkey_begin_login(db: AsyncSession, settings: Settings, email: str | None = None) -> dict:
+    from webauthn import generate_authentication_options, options_to_json
+    from webauthn.helpers.structs import PublicKeyCredentialDescriptor, UserVerificationRequirement
+
+    allow = []
+    user_id = None
+    if email:
+        u = (await db.execute(select(User).where(User.email == email.strip().lower()))).scalar_one_or_none()
+        if u and u.active:
+            user_id = u.id
+            keys = list((await db.execute(select(Passkey).where(Passkey.user_id == u.id))).scalars().all())
+            allow = [PublicKeyCredentialDescriptor(id=p.credential_id) for p in keys]
+    opts = generate_authentication_options(
+        rp_id=settings.rp_id,
+        allow_credentials=allow or None,
+        user_verification=UserVerificationRequirement.PREFERRED,
+    )
+    cid = await _store_challenge(db, "login", opts.challenge, user_id)
+    return {"challenge_id": cid, "options": json.loads(options_to_json(opts))}
+
+
+async def passkey_finish_login(
+    db: AsyncSession, settings: Settings, challenge_id: str, credential: Any
+) -> User:
+    from webauthn import verify_authentication_response
+    from webauthn.helpers import parse_authentication_credential_json
+
+    ch = await _take_challenge(db, challenge_id, "login")
+    try:
+        parsed = parse_authentication_credential_json(credential)
+    except Exception as e:
+        raise HTTPException(400, f"malformed credential: {e}") from e
+    pk = (
+        await db.execute(select(Passkey).where(Passkey.credential_id == parsed.raw_id))
+    ).scalar_one_or_none()
+    if pk is None:
+        raise HTTPException(401, "unknown passkey")
+    try:
+        v = verify_authentication_response(
+            credential=parsed,
+            expected_challenge=ch.challenge,
+            expected_rp_id=settings.rp_id,
+            expected_origin=settings.origins,
+            credential_public_key=pk.public_key,
+            credential_current_sign_count=pk.sign_count,
+        )
+    except Exception as e:
+        raise HTTPException(401, f"passkey sign-in failed: {e}") from e
+    pk.sign_count = v.new_sign_count
+    pk.last_used_at = now()
+    u = (await db.execute(select(User).where(User.id == pk.user_id))).scalar_one_or_none()
+    if u is None or not u.active:
+        raise HTTPException(401, "account is not active")
+    return u
+
+
+# ---- agent tokens -----------------------------------------------------------------------------------
+
+
+async def issue_token(
+    db: AsyncSession, owner: User, model_id: str, label: str, scopes: list[str], days: int = 90
+) -> tuple[AgentToken, str]:
+    bad = [s for s in scopes if s not in AGENT_SCOPES]
+    if bad:
+        raise HTTPException(400, f"unknown scopes: {bad}")
+    if days < 1 or days > 365:
+        raise HTTPException(400, "expiry must be 1–365 days")
+    raw = TOKEN_PREFIX + new_secret(32)
+    t = AgentToken(
+        token_hash=hash_secret(raw),
+        prefix=raw[:12],
+        owner_id=owner.id,
+        model_id=model_id[:128],
+        label=label[:128],
+        scopes=sorted(set(scopes)),
+        expires_at=now() + timedelta(days=days),
+    )
+    db.add(t)
+    await db.flush()
+    return t, raw
+
+
+async def token_from_bearer(db: AsyncSession, raw: str) -> AgentToken | None:
+    if not raw.startswith(TOKEN_PREFIX):
+        return None
+    t = (
+        await db.execute(select(AgentToken).where(AgentToken.token_hash == hash_secret(raw)))
+    ).scalar_one_or_none()
+    if t is None or t.revoked_at is not None or t.expires_at < now():
+        return None
+    if t.last_used_at is None or (now() - t.last_used_at).total_seconds() > 60:
+        t.last_used_at = now()
+    return t
+
+
+# ---- the principal dependency -------------------------------------------------------------------------
+
+
+@dataclass
+class Auth:
+    principal: Principal
+    session: Session | None = None
+
+
+async def resolve(db: AsyncSession, request: Request) -> Auth:
+    """Bearer token first (agents), then the session cookie (team). Anonymous otherwise."""
+    authz = request.headers.get("authorization", "")
+    if authz.lower().startswith("bearer "):
+        t = await token_from_bearer(db, authz[7:].strip())
+        if t is None:
+            raise HTTPException(401, "token is unknown, expired or revoked")
+        owner = (await db.execute(select(User).where(User.id == t.owner_id))).scalar_one_or_none()
+        if owner is None or not owner.active:
+            raise HTTPException(401, "token owner is not active")
+        return Auth(Principal(kind="token", token=t, scopes=set(t.scopes)))
+    got = await session_from_request(db, request)
+    if got:
+        s, u = got
+        return Auth(Principal(kind="user", user=u, roles=set(u.roles)), session=s)
+    return Auth(Principal())
+
+
+# ---- XE signed requests (release 2 routes; the verifier lives here so it is tested now) ------------------
+
+
+class SignedRequest(BaseModel):
+    payload: dict[str, Any] = Field(default_factory=dict)
+    timestamp: int
+    pub_key: str
+    signature: str
+
+
+@dataclass
+class Verified:
+    account: str
+    pub_key: str
+    payload: dict
+    timestamp: int
+    signature: str
+
+
+def signing_target(domain: bytes, payload: dict, timestamp: int) -> bytes:
+    return digest(domain, {"payload": payload, "timestamp": timestamp})
+
+
+async def verify_signed(db: AsyncSession, req: SignedRequest, domain: bytes) -> Verified:
+    t = time.time_ns()
+    if abs(t - req.timestamp) > MAX_SKEW_NS:
+        raise HTTPException(400, "signature timestamp is outside the ±10 minute window")
+    try:
+        account = derive_address(req.pub_key)
+        verify_hex_signature(req.pub_key, req.signature, signing_target(domain, req.payload, req.timestamp))
+    except KeyError_ as e:
+        raise HTTPException(401, f"bad signature: {e}") from e
+    sig = req.signature.lower()
+    seen = (
+        await db.execute(select(SeenSignature).where(SeenSignature.signature == sig))
+    ).scalar_one_or_none()
+    if seen is not None:
+        raise HTTPException(409, "this signature has already been used")
+    db.add(SeenSignature(signature=sig, ts=t))
+    await db.flush()
+    return Verified(
+        account=account,
+        pub_key=req.pub_key.lower(),
+        payload=req.payload,
+        timestamp=req.timestamp,
+        signature=sig,
+    )
+
+
+async def purge_seen_signatures(db: AsyncSession) -> int:
+    cutoff = time.time_ns() - 2 * MAX_SKEW_NS
+    res = await db.execute(delete(SeenSignature).where(SeenSignature.ts < cutoff))
+    return int(res.rowcount or 0)
+
+
+# ---- email ------------------------------------------------------------------------------------------
+
+
+async def send_mail(settings: Settings, to: str, subject: str, body: str) -> bool:
+    """Sends through SMTP when configured; otherwise logs the message and returns False so the caller
+    can show the link on the CLI instead. Never raises."""
+    if not settings.smtp_host:
+        log.info("mail not configured; would send to %s: %s\n%s", to, subject, body)
+        return False
+    msg = EmailMessage()
+    msg["From"], msg["To"], msg["Subject"] = settings.smtp_from, to, subject
+    msg.set_content(body)
+
+    def _send():
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=20) as s:
+            s.starttls()
+            if settings.smtp_user:
+                s.login(settings.smtp_user, settings.smtp_password)
+            s.send_message(msg)
+
+    try:
+        await asyncio.to_thread(_send)
+        return True
+    except Exception as e:
+        log.warning("mail to %s failed: %s", to, e)
+        return False

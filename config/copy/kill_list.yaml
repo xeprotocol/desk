@@ -1,0 +1,28 @@
+# Phrases that must never appear in the public register (config/copy/public.yaml, public templates,
+# reply templates). Matching is case-insensitive. The first group is the one that matters most: a
+# public reply or a bot message must never promise an award; awards are set by acceptance, approved by
+# a Treasurer, and paid by a member resolution, and none of those is a reply.
+phrases:
+  - "you will be paid"
+  - "you will receive"
+  - "we will pay"
+  - "guaranteed"
+  - "your award is"
+  - "your reward is"
+  - "has been awarded"
+  - "payout of"
+  # programme-register vocabulary that does not belong in portal copy
+  - "at the discretion of"
+  - "contingent on launch"
+  # primacy claims; the one permitted "first" lives on xe.network
+  - "world's first"
+  - "first ever"
+words:
+  # whole words that belong to the legal or programme registers
+  - company
+  - llc
+  - members
+  - directors
+  - counsel
+  - "natural person"
+  - advisory

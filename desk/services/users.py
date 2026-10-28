@@ -1,0 +1,143 @@
+"""Team accounts and agent tokens."""
+
+from __future__ import annotations
+
+from fastapi import HTTPException
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from .. import auth
+from ..authz import Principal
+from ..context import Context
+from ..models import ROLES, AgentToken, Passkey, User
+from .tickets import utcnow
+
+
+async def by_email(db: AsyncSession, email: str) -> User | None:
+    return (await db.execute(select(User).where(User.email == email.strip().lower()))).scalar_one_or_none()
+
+
+async def by_id(db: AsyncSession, uid: int) -> User | None:
+    return (await db.execute(select(User).where(User.id == uid))).scalar_one_or_none()
+
+
+async def list_users(db: AsyncSession) -> list[User]:
+    return list((await db.execute(select(User).order_by(User.id.asc()))).scalars().all())
+
+
+async def create_user(
+    ctx: Context, db: AsyncSession, actor: str, email: str, name: str, roles: list[str]
+) -> User:
+    email = email.strip().lower()
+    if "@" not in email:
+        raise HTTPException(400, "email looks wrong")
+    bad = [r for r in roles if r not in ROLES]
+    if bad:
+        raise HTTPException(400, f"unknown roles {bad}; choose from {list(ROLES)}")
+    if await by_email(db, email):
+        raise HTTPException(409, "that email already has an account")
+    u = User(email=email, name=name.strip()[:128], roles=sorted(set(roles)))
+    db.add(u)
+    await db.flush()
+    await ctx.events.append(db, "user.created", actor, {"user": u.id, "email": email, "roles": u.roles})
+    return u
+
+
+async def set_roles(ctx: Context, db: AsyncSession, actor: str, u: User, roles: list[str]) -> None:
+    bad = [r for r in roles if r not in ROLES]
+    if bad:
+        raise HTTPException(400, f"unknown roles {bad}")
+    old = list(u.roles)
+    u.roles = sorted(set(roles))
+    await ctx.events.append(db, "user.roles", actor, {"user": u.id, "from": old, "to": u.roles})
+
+
+async def set_active(ctx: Context, db: AsyncSession, actor: str, u: User, active: bool) -> None:
+    u.active = active
+    await ctx.events.append(db, "user.active", actor, {"user": u.id, "active": active})
+
+
+async def passkeys_for(db: AsyncSession, u: User) -> list[Passkey]:
+    return list(
+        (await db.execute(select(Passkey).where(Passkey.user_id == u.id).order_by(Passkey.created_at.asc())))
+        .scalars()
+        .all()
+    )
+
+
+async def tokens_for(db: AsyncSession, u: User | None = None) -> list[AgentToken]:
+    q = select(AgentToken).order_by(AgentToken.created_at.desc())
+    if u is not None:
+        q = q.where(AgentToken.owner_id == u.id)
+    return list((await db.execute(q)).scalars().all())
+
+
+async def token_by_id(db: AsyncSession, tid: int) -> AgentToken | None:
+    return (await db.execute(select(AgentToken).where(AgentToken.id == tid))).scalar_one_or_none()
+
+
+async def issue(
+    ctx: Context,
+    db: AsyncSession,
+    p: Principal,
+    owner: User,
+    model_id: str,
+    label: str,
+    scopes: list[str],
+    days: int,
+) -> tuple[AgentToken, str]:
+    if p.user is None:
+        raise HTTPException(403, "tokens are issued by a signed-in person")
+    if owner.id != p.user.id and "admin" not in p.roles:
+        raise HTTPException(403, "only an admin issues a token for someone else")
+    if "read:private" in scopes and not p.roles:
+        raise HTTPException(403, "read:private can only be granted by a team member")
+    t, raw = await auth.issue_token(db, owner, model_id, label, scopes, days)
+    await ctx.events.append(
+        db,
+        "token.issued",
+        p.actor,
+        {
+            "token": t.id,
+            "owner": owner.id,
+            "model": t.model_id,
+            "label": t.label,
+            "scopes": t.scopes,
+            "expires_at": t.expires_at.isoformat(),
+        },
+    )
+    return t, raw
+
+
+async def revoke(ctx: Context, db: AsyncSession, p: Principal, t: AgentToken) -> None:
+    if p.user is None or (t.owner_id != p.user.id and "admin" not in p.roles):
+        raise HTTPException(403, "only the owner or an admin revokes a token")
+    if t.revoked_at is None:
+        t.revoked_at = utcnow()
+        await ctx.events.append(db, "token.revoked", p.actor, {"token": t.id, "owner": t.owner_id})
+
+
+def token_dict(t: AgentToken) -> dict:
+    return {
+        "id": t.id,
+        "prefix": t.prefix,
+        "owner_id": t.owner_id,
+        "model_id": t.model_id,
+        "label": t.label,
+        "scopes": t.scopes,
+        "created_at": t.created_at.isoformat() if t.created_at else None,
+        "expires_at": t.expires_at.isoformat(),
+        "revoked_at": t.revoked_at.isoformat() if t.revoked_at else None,
+        "last_used_at": t.last_used_at.isoformat() if t.last_used_at else None,
+    }
+
+
+def user_dict(u: User) -> dict:
+    return {
+        "id": u.id,
+        "email": u.email,
+        "name": u.name,
+        "roles": u.roles,
+        "active": u.active,
+        "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
+    }

@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Invite{% endblock %}
+{% block content %}
+<div class="login">
+<div class="tag"><span>Team</span></div>
+<h1>Welcome to the desk.</h1>
+<p class="sub">This link signs you in once. On the next page, add a passkey (and a code as a fallback) so you can come back.</p>
+<form class="block" id="invite-form" data-token="{{ token }}">
+  <button type="button" id="accept-invite">Accept and continue</button>
+  <div class="msg" id="invite-msg" style="display:none"></div>
+</form>
+</div>
+{% endblock %}

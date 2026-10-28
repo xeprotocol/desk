@@ -1,0 +1,26 @@
+# Programme register: the rules, the tier definitions, anything the awards depend on. This is the
+# vocabulary of test.network/bounty, not the portal's. The public register is linted against the kill
+# list; this file is linted for drift against the rules page by a person, which is why it is short.
+
+rules_url: https://test.network/bounty
+tier_definitions:
+  critical: >-
+    Catastrophic protocol breaks. Unauthorized mint, double-spend, escrow theft, key recovery, consensus
+    that finalizes conflicting histories, or lattice compromise.
+  severe: >-
+    Serious breaks short of catastrophe. Signature forgery, validation bypass, node compromise, finality
+    that stalls network-wide under load; exploitable and damaging at scale.
+  high: >-
+    Targeted DoS, race conditions, replay attacks, privilege escalation, sustained degradation a single
+    client can cause.
+  medium: >-
+    Validation gaps, accounting mismatches, non-sensitive disclosure, inconsistent API responses,
+    measurable slowdowns under volume.
+  minor: >-
+    UI bugs, typos, broken explorer views, misleading log messages, documentation errors.
+terms:
+  - Severity, eligibility and reward are at the discretion of the XE core team.
+  - Duplicate reports go to the first verifiable submission.
+  - Payouts are in native XE at mainnet genesis from the 2%-of-supply allocation, contingent on launch.
+  - Amounts are targeted ceilings and provisional until the pool is finalized.
+  - XE team members and direct contractors are not eligible.

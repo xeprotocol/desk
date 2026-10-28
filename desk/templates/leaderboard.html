@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Leaderboard{% endblock %}
+{% block content %}
+<div class="tag"><span>Leaderboard</span></div>
+<h1>Awards so far, by reporter.</h1>
+<p class="sub">Approved awards on tickets that have reached <code>awarded</code> or <code>paid</code>. Amounts are in XE and are paid at mainnet genesis from the bounty allocation; see <a href="/scope">scope</a> for the terms.</p>
+{% if not rows %}
+<p class="mute">No awards approved yet. The first entries appear when the treasurer approves them.</p>
+{% else %}
+<table>
+<thead><tr><th>#</th><th>Reporter</th><th class="right">Tickets</th><th class="right">XE</th></tr></thead>
+<tbody>
+{% for r in rows %}
+<tr><td class="num">{{ loop.index }}</td><td>{% if r.login %}<a href="https://github.com/{{ r.login }}" rel="noopener">{{ r.name or r.login }}</a>{% else %}{{ r.name or "reporter " ~ r.reporter_id }}{% endif %}</td><td class="right num">{{ r.tickets }}</td><td class="right num">{{ r.award_xe|xe }}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Release view{% endblock %}
+{% block content %}
+<div class="release">
+<div class="tag"><span>Release view</span></div>
+<h1>What stands between the testnet and mainnet.</h1>
+<p class="sub">Every ticket gated <b>before</b> or <b>decide</b>, by area, most severe first. Hours are the sum of the effort bands on tickets not yet patched: engineer first, then the agent-assisted figure.</p>
+<div class="counts">
+  <div><b>{{ groups.values()|map("length")|sum }}</b>tickets</div>
+  <div><b>{{ "%.0f"|format(total[0]) }} h</b>engineer, open</div>
+  <div><b>{{ "%.0f"|format(total[1]) }} h</b>agent-assisted, open</div>
+</div>
+{% for area, ts in groups.items() %}
+<h2>{{ cfg.areas.get(area, area) }} <span class="k">{{ ts|length }} · {{ "%.0f"|format(hours[area][0]) }} h / {{ "%.1f"|format(hours[area][1]) }} h</span></h2>
+<table class="tickets">
+<thead><tr><th>#</th><th>Finding</th><th>Status</th><th>Tier</th><th>Gate</th><th>Eng.</th><th>Internal</th><th>PR</th><th>Assignee</th></tr></thead>
+<tbody>
+{% for t in ts %}
+<tr>
+  <td class="n">{{ m.tlink(t) }}</td>
+  <td class="title"><a href="/bounty/{{ t.id }}">{{ t.title }}</a></td>
+  <td>{{ m.status(t) }}</td>
+  <td>{{ m.tier(t.assessed_tier) }}</td>
+  <td>{{ m.gate(t.mainnet_gate) }}</td>
+  <td class="mono">{{ cfg.effort_label(t.effort_eng) if t.effort_eng else "—" }}</td>
+  <td class="mono">{{ t.internal_ref or "—" }}</td>
+  <td class="mono">{{ prs.get(t.id, "") }}</td>
+  <td class="k">{{ t.assignee_id or "" }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% endfor %}
+</div>
+{% endblock %}

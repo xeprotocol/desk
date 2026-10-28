@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+{% macro flt(name, value, label) -%}
+  {%- set cur = f|attr(name) -%}
+  {%- set qs = {"kind": kind, "status": f.status, "area": f.area, "gate": f.gate, "tier": f.tier, "verdict": f.verdict, "sort": f.sort, "q": f.q, "pending": f.pending} -%}
+  {%- set _ = qs.update({name: (None if cur == value and name not in ("status", "sort") else value)}) -%}
+  <a href="/?{% for k, v in qs.items() if v not in (None, "", False) %}{{ k }}={{ v|urlencode }}&{% endfor %}" class="{{ 'on' if cur == value else '' }}">{{ label }}</a>
+{%- endmacro %}
+
+<div class="statement"><div>
+  <h1>{{ copy.headline if kind == "bounty" else "Questions, answered in the open." }}</h1>
+  <p class="punch">{{ copy.punchline }}</p>
+</div></div>
+<p class="sub">{{ copy.sub }}</p>
+
+<div class="counts">
+  <div><b>{{ counts.open }}</b>{{ copy.labels.open }}</div>
+  {% for s in ("new", "triaging", "needs-info", "accepted", "fixing", "patched") if kind == "bounty" and counts[s] %}<div><b>{{ counts[s] }}</b>{{ copy.labels.get(s, s) }}</div>{% endfor %}
+  <div><b>{{ counts.closed + counts.paid }}</b>{{ copy.labels.closed }}</div>
+  {% if team and pend %}<div><b>{{ pend.values()|sum }}</b>pending proposals</div>{% endif %}
+</div>
+
+<div class="filters">
+  {{ flt("status", "open", "Open") }}{{ flt("status", "closed", "Closed") }}{{ flt("status", "all", "All") }}
+  <span class="sep">·</span>
+  {% for k, v in cfg.areas.items() %}{{ flt("area", k, v) }}{% endfor %}
+  {% if kind == "bounty" %}
+  <span class="sep">·</span>
+  {% for k, v in cfg.gates.items() %}{{ flt("gate", k, v) }}{% endfor %}
+  <span class="sep">·</span>
+  {% for k in cfg.tier_order if k != "none" %}{{ flt("tier", k, cfg.tier_label(k)) }}{% endfor %}
+  {% endif %}
+  <span class="sep">·</span>
+  {{ flt("sort", "severity", "By severity") }}{{ flt("sort", "age", "By age") }}{{ flt("sort", "updated", "By update") }}
+  {% if team %}<span class="sep">·</span><a href="/?kind={{ kind }}&status=open&pending=true" class="{{ 'on' if f.pending }}">Pending proposals</a>{% endif %}
+</div>
+
+<form method="get" action="/" class="row" style="margin:0 0 20px">
+  <input type="hidden" name="kind" value="{{ kind }}">
+  <input type="text" name="q" value="{{ f.q or '' }}" placeholder="search title, id, #issue, internal ref" style="max-width:420px">
+  <button class="ghost mini" type="submit">Search</button>
+</form>
+
+{% if not tickets %}
+<p class="mute">Nothing here under these filters.</p>
+{% else %}
+<table class="tickets">
+<thead><tr>
+  <th>#</th><th>Finding</th><th>Status</th>{% if kind == "bounty" %}<th>Tier</th><th>Gate</th><th>Eng.</th>{% endif %}<th>Source</th><th>Internal</th><th>PR</th><th class="right">Age</th>
+</tr></thead>
+<tbody>
+{% for t in tickets %}
+<tr>
+  <td class="n">{{ m.tlink(t) }}{% if t.visibility == "private" %} <span class="pill private">private</span>{% endif %}</td>
+  <td class="title"><a href="/{{ 'bounty' if t.kind == 'bounty' else 'support' }}/{{ t.id }}">{{ t.title }}</a>
+    <span class="k">{% if t.verdict %}{{ cfg.verdicts.get(t.verdict, t.verdict) }}{% endif %}{% if t.duplicate_of %} · dup of {{ t.duplicate_of }}{% endif %}{% if team and pend.get(t.id) %} · <span class="pill pending">{{ pend[t.id] }} pending</span>{% endif %}</span></td>
+  <td>{{ m.status(t) }}</td>
+  {% if kind == "bounty" %}
+  <td>{% if t.assessed_tier %}{{ m.tier(t.assessed_tier) }}{% elif t.claimed_tier %}<span class="k">claimed</span> {{ m.tier(t.claimed_tier) }}{% else %}—{% endif %}</td>
+  <td>{{ m.gate(t.mainnet_gate) }}</td>
+  <td class="mono">{{ cfg.effort_label(t.effort_eng) if t.effort_eng else "—" }}</td>
+  {% endif %}
+  <td>{{ m.source(t) }}</td>
+  <td class="mono">{{ t.internal_ref or "—" }}</td>
+  <td class="mono">{{ prs.get(t.id, "") }}</td>
+  <td class="right num">{{ (t.source_created_at or t.created_at)|day }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+<p class="k">{{ tickets|length }} shown. Tiers are the team's assessment where one has been made, the reporter's claim otherwise. The gate says whether a fix lands before mainnet. Append <code>.md</code> to this page for markdown.</p>
+{% endif %}
+{% endblock %}

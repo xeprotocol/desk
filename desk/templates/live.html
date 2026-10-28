@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Live{% endblock %}
+{% block content %}
+<div class="tag"><span>Live</span></div>
+<h1>The log as it happens.</h1>
+<p class="sub">Server-sent events from <code>/v1/events/stream</code>. Entries appear as the desk writes them; nothing is shown that is not in the chain. Head at load: index {{ head.index }}.</p>
+<p class="k" id="live-state">connecting…</p>
+<ul class="live" id="live-list"></ul>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const list = document.getElementById("live-list"), state = document.getElementById("live-state");
+  const es = new EventSource("/v1/events/stream?since={{ head.index - 20 if head.index > 20 else -1 }}");
+  es.addEventListener("entry", (e) => {
+    const d = JSON.parse(e.data);
+    const li = document.createElement("li");
+    const when = new Date(d.ts / 1e6).toISOString().replace("T", " ").slice(0, 16) + " UTC";
+    let summary = "";
+    if (d.kind === "ticket.status") summary = `${d.payload.from} → ${d.payload.to}`;
+    else if (d.kind === "ticket.facts") summary = Object.keys(d.payload.changes || {}).join(", ");
+    else if (d.kind === "ticket.created") summary = d.payload.title || "";
+    else if (d.kind.startsWith("proposal.")) summary = d.payload.field || "";
+    li.innerHTML = `<a href="/log/${d.index}" class="mono">${d.index}</a> <span class="k">${when}</span> <span class="mono">${d.kind}</span> ` +
+      (d.ref ? `<a href="/log?ref=${encodeURIComponent(d.ref)}" class="mono">${d.ref}</a> ` : "") + `<span class="k"></span>`;
+    li.querySelector("span.k:last-child").textContent = summary;
+    list.prepend(li);
+    while (list.children.length > 200) list.removeChild(list.lastChild);
+    state.textContent = "live · last entry " + d.index;
+  });
+  es.addEventListener("ping", () => { state.textContent = state.textContent.replace(/^connecting…$/, "live"); });
+  es.onerror = () => { state.textContent = "reconnecting…"; };
+})();
+</script>
+{% endblock %}

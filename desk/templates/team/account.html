@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Account{% endblock %}
+{% block content %}
+<div class="tag"><span>Account</span></div>
+<h1>{{ p.user.name or p.user.email }}</h1>
+<p class="sub">{{ p.user.email }} · roles: {% for r in p.roles|sort %}<span class="pill">{{ r }}</span> {% endfor %}</p>
+
+<div class="grid">
+<div class="card">
+  <h3>Passkeys</h3>
+  {% if not keys %}<p>None yet. Add one now so you can sign in without the code.</p>{% endif %}
+  <table class="toks">{% for k in keys %}<tr><td>{{ k.label or "passkey" }}</td><td class="k">added {{ k.created_at|day }}{% if k.last_used_at %}, used {{ k.last_used_at|day }}{% endif %}</td><td class="right"><button class="ghost mini" type="button" data-remove-passkey="{{ k.id }}">Remove</button></td></tr>{% endfor %}</table>
+  <div class="row" style="margin-top:12px"><input type="text" id="passkey-label" placeholder="label, e.g. laptop" style="max-width:220px"><button class="mini" type="button" id="add-passkey">Add a passkey</button></div>
+  <div class="msg" id="passkey-msg" style="display:none"></div>
+</div>
+<div class="card">
+  <h3>Authenticator code</h3>
+  {% if totp %}
+  <p>Set. Works as a fallback when a passkey is not to hand.</p>
+  <button class="ghost mini" type="button" id="remove-totp">Remove the code</button>
+  {% else %}
+  <p>Not set. Scan the QR in your authenticator app, then confirm with the first code.</p>
+  <button class="mini" type="button" id="setup-totp">Set up a code</button>
+  <div id="totp-setup" style="display:none; margin-top:12px">
+    <p class="k">Secret: <code id="totp-secret"></code></p>
+    <p class="k" id="totp-uri-wrap"><a id="totp-uri" href="#">Open in an authenticator</a></p>
+    <div class="row"><input type="text" id="totp-code" inputmode="numeric" placeholder="first code" style="max-width:160px"><button class="mini" type="button" id="confirm-totp">Confirm</button></div>
+  </div>
+  {% endif %}
+  <div class="msg" id="totp-msg" style="display:none"></div>
+</div>
+<div class="card">
+  <h3>Session</h3>
+  <p>Signed in. Sessions last 14 days; signing out ends this one.</p>
+  <button class="ghost mini" type="button" id="logout">Sign out</button>
+  <p class="k" style="margin-top:16px"><a href="/team/tokens">Agent tokens</a>{% if is_admin %} · <a href="/team/users">Users</a>{% endif %}</p>
+</div>
+</div>
+{% endblock %}

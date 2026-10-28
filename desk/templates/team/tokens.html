@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Agent tokens{% endblock %}
+{% block content %}
+<div class="tag"><span>Agent tokens</span></div>
+<h1>Tokens an agent calls the desk with.</h1>
+<p class="sub">Each token is bound to a person, a model, a set of scopes and an expiry. There is no scope that sends a reply, sets a status or an award, or reads a payout address. Whatever an agent does with a token is logged against the token and its owner.</p>
+
+<div class="card" style="margin-bottom:32px">
+  <h3>Issue a token</h3>
+  <form class="block" id="token-form">
+    <div class="row">
+      <div style="flex:1; min-width:200px"><label>Model id</label><input type="text" name="model_id" placeholder="claude-fable-5.1" required></div>
+      <div style="flex:1; min-width:200px"><label>Label</label><input type="text" name="label" placeholder="triage, nightly"></div>
+      <div style="width:120px"><label>Days</label><input type="number" name="days" value="90" min="1" max="365"></div>
+      {% if is_admin %}<div style="min-width:200px"><label>Owner</label><select name="owner_id">{% for u in owners.values() %}<option value="{{ u.id }}" {{ "selected" if u.id == p.user.id }}>{{ u.name or u.email }}</option>{% endfor %}</select></div>{% endif %}
+    </div>
+    <label>Scopes</label>
+    <div class="row">
+      {% for s in ("read:public", "read:private", "write:notes", "write:proposals", "write:patch-refs") %}
+      <label style="display:inline-flex; gap:6px; align-items:center; margin:0; text-transform:none; font:inherit; color:var(--fg)"><input type="checkbox" name="scopes" value="{{ s }}" {{ "checked" if s in ("read:public", "write:notes", "write:proposals") }}> <code>{{ s }}</code></label>
+      {% endfor %}
+    </div>
+    <div class="row" style="margin-top:14px"><button type="submit" class="mini">Issue</button></div>
+    <div class="msg" id="token-msg" style="display:none"></div>
+  </form>
+</div>
+
+<table class="toks">
+<thead><tr><th>Prefix</th><th>Model</th><th>Label</th><th>Owner</th><th>Scopes</th><th>Expires</th><th>Last used</th><th></th></tr></thead>
+<tbody>
+{% for t in tokens %}
+<tr class="{{ 'mute' if t.revoked_at }}">
+  <td><code>{{ t.prefix }}…</code></td><td>{{ t.model_id }}</td><td>{{ t.label }}</td>
+  <td>{{ owners[t.owner_id].name or owners[t.owner_id].email if t.owner_id in owners else t.owner_id }}</td>
+  <td>{% for s in t.scopes %}<code>{{ s }}</code> {% endfor %}</td>
+  <td class="num">{{ t.expires_at|day }}</td><td class="num">{{ t.last_used_at|dt }}</td>
+  <td class="right">{% if t.revoked_at %}<span class="pill closed">revoked</span>{% else %}<button class="ghost mini" type="button" data-revoke="{{ t.id }}">Revoke</button>{% endif %}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+<p class="k">Calling: <code>Authorization: Bearer desk_…</code> against <code>/v1</code>. See <a href="/llms.txt">llms.txt</a> for the agent's reading list.</p>
+{% endblock %}

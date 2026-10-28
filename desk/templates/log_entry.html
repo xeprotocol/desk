@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Log entry {{ ev.index }}{% endblock %}
+{% block content %}
+<div class="tag"><span>Log entry</span></div>
+<h1>{{ ev.index }} · {{ ev.kind }}</h1>
+<dl class="facts">
+  <dt>When</dt><dd>{{ ev.ts|ns }} <span class="k">({{ ev.ts }} ns)</span></dd>
+  <dt>Actor</dt><dd class="mono">{{ ev.actor }}</dd>
+  {% if ev.ref %}<dt>Ref</dt><dd><a href="/log?ref={{ ev.ref }}" class="mono">{{ ev.ref }}</a>{% if ev.ref.startswith("XE-") or ev.ref.startswith("XS-") %} · <a href="/{{ 'bounty' if ev.ref.startswith('XE-') else 'support' }}/{{ ev.ref }}">open ticket</a>{% endif %}</dd>{% endif %}
+  <dt>Public</dt><dd>{{ "yes" if ev.public else "no" }}</dd>
+  <dt>Hash</dt><dd class="mono">{{ ev.hash }}</dd>
+  <dt>Previous</dt><dd class="mono">{% if ev.index > 0 %}<a href="/log/{{ ev.index - 1 }}">{{ ev.prev_hash }}</a>{% else %}{{ ev.prev_hash }}{% endif %}</dd>
+  <dt>Signer</dt><dd class="mono">{{ ev.signer or "unsigned" }}</dd>
+  <dt>Signature</dt><dd class="mono">{{ ev.signature or "—" }}</dd>
+</dl>
+<h3>Payload</h3>
+<pre>{{ ev.payload|tojson(indent=2) }}</pre>
+<p class="k">To verify: <code>sha256("xe-desk/event/v1\0" ‖ canonical_json({index, ts, kind, actor, payload, prev_hash}))</code> must equal the hash, and the signature must verify over the hash bytes under the signer's Ed25519 key. <a href="/v1/log/{{ ev.index }}">JSON</a> · <a href="/log/{{ ev.index + 1 }}">next</a></p>
+{% endblock %}

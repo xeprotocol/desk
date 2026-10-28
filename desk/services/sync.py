@@ -1,0 +1,470 @@
+"""GitHub <-> desk.
+
+Inbound: issues become tickets (idempotent on repo+number), comments become public-thread messages,
+PRs that reference an issue become patch refs. Runs as a full import, a `since` poll, or per webhook
+delivery; all three go through the same `upsert_*` functions.
+
+Outbound: the status label on the issue (the tool's labels only; anything else on the issue is left
+alone), queued replies as comments, and close/reopen when the desk closes or reopens. A private
+ticket being disclosed opens a new issue. GitHub is the mirror; the desk is the record.
+"""
+
+from __future__ import annotations
+
+import logging
+from datetime import datetime, timezone
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ..authz import SYSTEM
+from ..context import Context
+from ..models import Note, Reply, Reporter, SyncCursor, Ticket
+from . import github as gh
+from . import thread
+from . import tickets as tsvc
+from .tickets import NewTicket, utcnow
+
+log = logging.getLogger("desk.sync")
+BOT_LOGINS = {"github-actions[bot]", "dependabot[bot]"}
+DESK_MARK = "<!-- xe-desk -->"
+
+
+def _dt(s: str | None) -> datetime | None:
+    if not s:
+        return None
+    return datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(timezone.utc)
+
+
+# ---- reporters --------------------------------------------------------------------------------------
+
+
+async def reporter_for(db: AsyncSession, user: dict | None) -> Reporter | None:
+    if not user or user.get("type") == "Bot":
+        return None
+    gid, login = user.get("id"), user.get("login") or ""
+    r = None
+    if gid is not None:
+        r = (await db.execute(select(Reporter).where(Reporter.github_id == gid))).scalar_one_or_none()
+    if r is None and login:
+        r = (
+            await db.execute(
+                select(Reporter).where(Reporter.github_login == login, Reporter.github_id.is_(None))
+            )
+        ).scalar_one_or_none()
+    if r is None:
+        r = Reporter(github_login=login, github_id=gid, display_name=login)
+        db.add(r)
+        await db.flush()
+    elif r.github_login != login or (r.github_id is None and gid is not None):
+        r.github_login, r.github_id = login, gid
+    return r
+
+
+# ---- inbound ----------------------------------------------------------------------------------------
+
+
+async def upsert_issue(
+    ctx: Context, db: AsyncSession, repo: str, issue: dict, *, first_touch: bool = True
+) -> tuple[Ticket, bool]:
+    """Create or refresh the ticket for a GitHub issue. Returns (ticket, created). Only GitHub-owned
+    facts are refreshed: title, body (while editable), github state and labels, source times."""
+    number = str(issue["number"])
+    t = await tsvc.find_by_source(db, "github", repo, number)
+    body = issue.get("body") or ""
+    title = (issue.get("title") or f"{repo}#{number}").strip()
+    state = issue.get("state") or "open"
+    labels = sorted(label["name"] for label in issue.get("labels") or [])
+    created = False
+    if t is None:
+        reporter = await reporter_for(db, issue.get("user"))
+        spec = NewTicket(
+            kind="bounty",
+            title=title,
+            body=body,
+            visibility="public",
+            source="github",
+            source_repo=repo,
+            source_ref=number,
+            source_url=issue.get("html_url") or "",
+            reporter_id=reporter.id if reporter else None,
+            claimed_tier=gh.claimed_tier(title, body),
+            source_created_at=_dt(issue.get("created_at")),
+            github_state=state,
+        )
+        t = await tsvc.create(ctx, db, "desk", spec)
+        t.github_labels = labels
+        created = True
+        if first_touch and (ctx.config.desk.get("github") or {}).get("first_touch_note", True):
+            await thread.add_note(ctx, db, SYSTEM, t, f"Imported from {repo}#{number}. First touch pending.")
+    else:
+        if t.body_editable and t.visibility == "public" and (t.title != title or t.body != body):
+            t.title, t.body = title[:512], body
+        if t.github_state != state:
+            t.github_state = state
+            await ctx.events.append(db, "github.state", "desk", {"ticket": t.id, "state": state}, ref=t.id)
+            if state == "closed" and t.is_open and t.status in ("new", "triaging", "needs-info"):
+                # closed on GitHub by someone before the desk ruled; mirror it as stale so it is not lost
+                await ctx.events.append(
+                    db, "github.closed_externally", "desk", {"ticket": t.id, "status": t.status}, ref=t.id
+                )
+        if t.github_labels != labels:
+            t.github_labels = labels
+    return t, created
+
+
+async def upsert_comment(ctx: Context, db: AsyncSession, t: Ticket, comment: dict) -> bool:
+    user = comment.get("user") or {}
+    login = user.get("login") or ""
+    body = comment.get("body") or ""
+    is_team = DESK_MARK in body or login == ctx.settings.github_bot_login
+    m = await thread.add_message(
+        ctx,
+        db,
+        t,
+        source="github",
+        source_ref=str(comment["id"]),
+        author=login,
+        body=body.replace(DESK_MARK, "").strip(),
+        created_at=_dt(comment.get("created_at")),
+        is_team=is_team,
+    )
+    return m is not None
+
+
+async def link_pull(ctx: Context, db: AsyncSession, repo: str, pull: dict) -> int:
+    """Attach a PR to every ticket whose issue it references. Returns how many links were new."""
+    refs = gh.issue_refs(f"{pull.get('title') or ''}\n{pull.get('body') or ''}")
+    if not refs:
+        return 0
+    state = "merged" if pull.get("merged_at") else (pull.get("state") or "open")
+    n = 0
+    for issue_no in refs:
+        t = await tsvc.find_by_source(db, "github", repo, str(issue_no))
+        if t is None:
+            continue
+        pr = await thread.add_patch_ref(
+            ctx,
+            db,
+            SYSTEM,
+            t,
+            repo=repo,
+            ref=str(pull["number"]),
+            kind="pr",
+            title=pull.get("title") or "",
+            url=pull.get("html_url") or "",
+            state=state,
+        )
+        if pr is not None:
+            n += 1
+    return n
+
+
+async def import_repo(
+    ctx: Context,
+    db: AsyncSession,
+    client: gh.GitHub,
+    repo: str,
+    *,
+    since: str | None = None,
+    comments: bool = True,
+    pulls: bool = True,
+) -> dict:
+    """Full or incremental import of one repository. Commits as it goes so a long run is resumable."""
+    stats = {"repo": repo, "issues": 0, "created": 0, "comments": 0, "pulls": 0}
+    newest = since or ""
+    async for issue in client.issues(repo, since=since):
+        t, created = await upsert_issue(ctx, db, repo, issue)
+        stats["issues"] += 1
+        stats["created"] += int(created)
+        if comments and (issue.get("comments") or 0) > 0:
+            async for c in client.comments(repo, issue["number"], since=since):
+                stats["comments"] += int(await upsert_comment(ctx, db, t, c))
+        newest = max(newest, issue.get("updated_at") or "")
+        await db.commit()
+    if pulls:
+        async for pull in client.pulls(repo):
+            if since and (pull.get("updated_at") or "") < since:
+                continue
+            stats["pulls"] += await link_pull(ctx, db, repo, pull)
+        await db.commit()
+    await set_cursor(db, f"github:{repo}:issues", newest, stats)
+    await db.commit()
+    return stats
+
+
+async def poll(ctx: Context, db: AsyncSession, client: gh.GitHub) -> list[dict]:
+    out = []
+    for repo in ctx.config.repos:
+        since = await get_cursor(db, f"github:{repo}:issues")
+        out.append(await import_repo(ctx, db, client, repo, since=since or None))
+    if ctx.config.internal_repo:
+        since = await get_cursor(db, f"github:{ctx.config.internal_repo}:issues")
+        out.append(await import_internal(ctx, db, client, since=since or None))
+    return out
+
+
+# ---- the engineering tracker (read-only) ------------------------------------------------------------
+#
+# The CTO's tickets live in a private repo and name the public reports they cover: "security: bounty
+# bundle xe#8". The desk never writes there. It reads the tag to fill `internal_ref`, and reads the
+# issue's state to move the public ticket: open → accepted; closed as completed → patched, which puts
+# the ticket in the outbox for a human to tell the reporter; closed as not planned → a note, since the
+# public verdict is the Reviewer's call. Every change is the SYSTEM principal with via="internal".
+
+
+async def link_internal_issue(ctx: Context, db: AsyncSession, issue: dict) -> dict:
+    """Apply one internal issue to every public ticket it names. Idempotent."""
+    repo = ctx.config.internal_repo
+    number = int(issue["number"])
+    ref = f"#{number}"
+    via = f"internal:{repo}{ref}"
+    text = f"{issue.get('title') or ''}\n{issue.get('body') or ''}"
+    stats = {"issue": number, "tagged": 0, "linked": 0, "moved": 0, "noted": 0}
+    for pub_repo, pub_num in gh.public_tags(text, ctx.config.internal_aliases):
+        t = await tsvc.find_by_source(db, "github", pub_repo, str(pub_num))
+        if t is None:
+            continue
+        stats["tagged"] += 1
+        if not t.internal_ref:
+            await tsvc.set_facts(ctx, db, SYSTEM, t, {"internal_ref": ref}, via=via)
+            stats["linked"] += 1
+        elif t.internal_ref != ref:
+            # the triage doc or a human already named another ticket; say so once rather than overwrite
+            if await _note_once(ctx, db, t, f"Internal ticket {ref} also names this report ({repo})."):
+                stats["noted"] += 1
+            continue
+        stats["moved"] += int(await _follow_internal_state(ctx, db, t, issue, via))
+    return stats
+
+
+async def _follow_internal_state(ctx: Context, db: AsyncSession, t: Ticket, issue: dict, via: str) -> bool:
+    if t.kind != "bounty":
+        return False
+    state = issue.get("state") or "open"
+    reason = issue.get("state_reason") or ""
+    ref = f"#{issue['number']}"
+    if state == "open":
+        if t.status in ("new", "triaging", "needs-info"):
+            await tsvc.set_status(ctx, db, SYSTEM, t, "accepted", reason=f"internal {ref} open", via=via)
+            return True
+        return False
+    if reason == "not_planned":
+        return await _note_once(
+            ctx, db, t, f"Internal ticket {ref} was closed as not planned; the public verdict is yours."
+        )
+    if t.status in ("accepted", "fixing"):
+        await tsvc.set_status(ctx, db, SYSTEM, t, "patched", reason=f"internal {ref} closed", via=via)
+        return True
+    if t.status in ("new", "triaging", "needs-info"):
+        # fixed before the desk ever ruled: accept, then patch, so the history reads honestly
+        await tsvc.set_status(ctx, db, SYSTEM, t, "accepted", reason=f"internal {ref} closed", via=via)
+        await tsvc.set_status(ctx, db, SYSTEM, t, "patched", reason=f"internal {ref} closed", via=via)
+        return True
+    return False
+
+
+async def _note_once(ctx: Context, db: AsyncSession, t: Ticket, body: str) -> bool:
+    q = select(Note.id).where(Note.ticket_id == t.id, Note.author == SYSTEM.actor, Note.body == body)
+    if (await db.execute(q)).first():
+        return False
+    await thread.add_note(ctx, db, SYSTEM, t, body)
+    return True
+
+
+async def import_internal(
+    ctx: Context, db: AsyncSession, client: gh.GitHub, *, since: str | None = None
+) -> dict:
+    """Read the tracker, newest-updated last, and apply each issue. Commits as it goes."""
+    repo = ctx.config.internal_repo
+    stats = {"repo": repo, "issues": 0, "comments": 0, "pulls": 0, "tagged": 0, "linked": 0, "moved": 0}
+    if not repo:
+        return stats
+    newest = since or ""
+    async for issue in client.issues(repo, since=since):
+        s = await link_internal_issue(ctx, db, issue)
+        stats["issues"] += 1
+        for k in ("tagged", "linked", "moved"):
+            stats[k] += s[k]
+        newest = max(newest, issue.get("updated_at") or "")
+        await db.commit()
+    await set_cursor(db, f"github:{repo}:issues", newest, stats)
+    await db.commit()
+    return stats
+
+
+async def handle_webhook(ctx: Context, db: AsyncSession, event: str, payload: dict) -> dict:
+    repo = (payload.get("repository") or {}).get("full_name") or ""
+    if repo and repo == ctx.config.internal_repo:
+        if event == "issues" and "issue" in payload and "pull_request" not in payload["issue"]:
+            return {"internal": await link_internal_issue(ctx, db, payload["issue"])}
+        return {"ignored": "internal event"}
+    if repo not in ctx.config.repos:
+        return {"ignored": "repo"}
+    action = payload.get("action") or ""
+    if event == "issues" and "issue" in payload:
+        t, created = await upsert_issue(ctx, db, repo, payload["issue"])
+        return {"ticket": t.id, "created": created, "action": action}
+    if event == "issue_comment" and "issue" in payload and "comment" in payload:
+        if "pull_request" in payload["issue"]:
+            return {"ignored": "pr comment"}
+        t, _ = await upsert_issue(ctx, db, repo, payload["issue"])
+        if action in ("created", "edited"):
+            added = await upsert_comment(ctx, db, t, payload["comment"])
+            return {"ticket": t.id, "comment": added}
+        return {"ticket": t.id, "action": action}
+    if event == "pull_request" and "pull_request" in payload:
+        n = await link_pull(ctx, db, repo, payload["pull_request"])
+        return {"linked": n}
+    return {"ignored": event}
+
+
+# ---- cursors ----------------------------------------------------------------------------------------
+
+
+async def get_cursor(db: AsyncSession, key: str) -> str:
+    row = (await db.execute(select(SyncCursor).where(SyncCursor.key == key))).scalar_one_or_none()
+    return row.value if row else ""
+
+
+async def set_cursor(db: AsyncSession, key: str, value: str, detail: dict | None = None) -> None:
+    row = (await db.execute(select(SyncCursor).where(SyncCursor.key == key))).scalar_one_or_none()
+    if row is None:
+        row = SyncCursor(key=key)
+        db.add(row)
+    row.value = value
+    row.detail = detail or {}
+
+
+# ---- outbound ---------------------------------------------------------------------------------------
+
+
+def _footer(ctx: Context, t: Ticket) -> str:
+    return f"\n\n{DESK_MARK}\n<sub>{t.id} · {tsvc.ticket_url(ctx, t)}</sub>"
+
+
+async def push_labels(ctx: Context, db: AsyncSession, client: gh.GitHub, t: Ticket) -> bool:
+    """Make the issue's status label match the ticket. Other labels are left as they are."""
+    if t.source != "github" or not t.source_repo or not client.enabled:
+        return False
+    cfg = ctx.config
+    want = cfg.label_for(t.status, t.closed_reason)
+    ours = cfg.tool_label_names
+    keep = [name for name in (t.github_labels or []) if name not in ours]
+    if want:
+        keep.append(want["name"])
+    if sorted(keep) == sorted(t.github_labels or []):
+        return False
+    names = await client.set_labels(t.source_repo, int(t.source_ref), keep)
+    t.github_labels = sorted(names)
+    await ctx.events.append(
+        db, "github.labels", "desk", {"ticket": t.id, "labels": t.github_labels}, ref=t.id
+    )
+    return True
+
+
+async def push_state(ctx: Context, db: AsyncSession, client: gh.GitHub, t: Ticket) -> bool:
+    """Close the issue when the desk closes the ticket; reopen when the desk reopens it."""
+    if t.source != "github" or not t.source_repo or not client.enabled:
+        return False
+    want = "closed" if t.status in ("closed", "paid") else "open"
+    if t.github_state == want:
+        return False
+    reason = None
+    if want == "closed":
+        reason = (
+            "not_planned"
+            if t.closed_reason in ("invalid", "out-of-scope", "duplicate", "stale", "withdrawn")
+            else "completed"
+        )
+    await client.set_state(t.source_repo, int(t.source_ref), want, reason)
+    t.github_state = want
+    await ctx.events.append(
+        db, "github.state_pushed", "desk", {"ticket": t.id, "state": want, "reason": reason}, ref=t.id
+    )
+    return True
+
+
+async def mirror_reply(ctx: Context, db: AsyncSession, client: gh.GitHub, r: Reply) -> bool:
+    t = await tsvc.get(db, r.ticket_id)
+    if t is None or t.source != "github" or not t.source_repo:
+        r.mirror = "none"
+        return False
+    if not client.enabled:
+        r.mirror_error = "github token not configured"
+        return False
+    try:
+        c = await client.comment(t.source_repo, int(t.source_ref), r.body + _footer(ctx, t))
+    except gh.GitHubError as e:
+        r.mirror = "failed"
+        r.mirror_error = str(e)[:2000]
+        await ctx.events.append(
+            db,
+            "reply.mirror_failed",
+            "desk",
+            {"ticket": t.id, "reply": r.id, "error": str(e)[:200]},
+            ref=t.id,
+        )
+        return False
+    r.mirror, r.mirror_ref, r.mirror_error, r.sent_at = "sent", c.get("html_url") or "", "", utcnow()
+    await thread.add_message(
+        ctx,
+        db,
+        t,
+        source="github",
+        source_ref=str(c["id"]),
+        author=r.author_name,
+        body=r.body,
+        created_at=_dt(c.get("created_at")),
+        is_team=True,
+    )
+    await ctx.events.append(
+        db, "reply.mirrored", "desk", {"ticket": t.id, "reply": r.id, "url": r.mirror_ref}, ref=t.id
+    )
+    return True
+
+
+async def queued_replies(db: AsyncSession, limit: int = 50) -> list[Reply]:
+    q = select(Reply).where(Reply.mirror == "queued").order_by(Reply.created_at.asc()).limit(limit)
+    return list((await db.execute(q)).scalars().all())
+
+
+async def open_disclosure(ctx: Context, db: AsyncSession, client: gh.GitHub, t: Ticket) -> str:
+    """A disclosed private ticket gets a public issue in the primary repo and becomes a GitHub-sourced
+    ticket from then on, so labels and replies flow like any other."""
+    if t.source == "github" or not client.enabled:
+        return ""
+    repo = ctx.config.primary_repo
+    patches = await thread.patches_for(db, t)
+    lines = [
+        t.body or "",
+        "",
+        "---",
+        f"Disclosed from the desk as {t.id}; reported privately on "
+        f"{t.source_created_at.date().isoformat() if t.source_created_at else t.created_at.date().isoformat()}.",
+    ]
+    if patches:
+        lines.append(
+            "Fixed in "
+            + ", ".join(f"{p.repo}#{p.ref}" if p.kind == "pr" else f"{p.repo}@{p.ref[:10]}" for p in patches)
+            + "."
+        )
+    label = ctx.config.label_for(t.status, t.closed_reason)
+    issue = await client.create_issue(
+        repo, t.title, "\n".join(lines) + _footer(ctx, t), [label["name"]] if label else []
+    )
+    t.source, t.source_repo, t.source_ref = "github", repo, str(issue["number"])
+    t.source_url, t.github_state = issue.get("html_url") or "", "open"
+    t.github_labels = sorted(label["name"] for label in issue.get("labels") or [])
+    t.body_editable = False
+    await ctx.events.append(
+        db, "github.disclosed", "desk", {"ticket": t.id, "issue": f"{repo}#{issue['number']}"}, ref=t.id
+    )
+    return t.source_url
+
+
+async def tickets_needing_push(db: AsyncSession) -> list[Ticket]:
+    """GitHub-sourced tickets whose status label or state may differ from the issue. Cheap filter here;
+    push_* compare properly."""
+    q = select(Ticket).where(Ticket.source == "github", Ticket.status != "new")
+    return list((await db.execute(q)).scalars().all())

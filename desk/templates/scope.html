@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}Scope and tiers{% endblock %}
+{% block content %}
+<div class="tag"><span>Scope</span></div>
+<h1>What the bounty covers, and what each tier means.</h1>
+<p class="sub">The rules are at <a href="{{ prog.rules_url }}">{{ prog.rules_url }}</a>. This page is the desk's reading of them, so a ticket's tier can be checked against the words it was assessed under.</p>
+
+<div class="prose">
+<h2>Tiers</h2>
+<table>
+<thead><tr><th>Tier</th><th>Ceiling</th><th>Means</th></tr></thead>
+<tbody>
+{% for k in cfg.tier_order if k != "none" %}
+<tr><td>{{ m.tier(k) }}</td><td class="num">{{ cfg.ceiling_micro(k)|xe }} XE</td><td>{{ prog.tier_definitions.get(k, "") }}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+
+<h2>Terms</h2>
+<ul>{% for line in prog.terms %}<li>{{ line }}</li>{% endfor %}</ul>
+
+<h2>Areas</h2>
+<ul>{% for k, v in cfg.areas.items() %}<li><a href="/?kind=bounty&area={{ k }}">{{ v }}</a></li>{% endfor %}</ul>
+
+<h2>How a report moves</h2>
+<p><code>new → triaging → (needs-info ⇄) → accepted → fixing → patched → disclosed → awarded → paid</code>, or <code>closed</code> as duplicate, invalid, out of scope or withdrawn. Every move is in the <a href="/log">log</a>; every ticket says which internal ticket tracks its fix and which PR closed it.</p>
+<p><b>Before, decide, later.</b> The gate on a bounty ticket says whether its fix lands before mainnet, is a product decision still to be made, or can follow launch. The <a href="/?kind=bounty&gate=before">before</a> list is the release view.</p>
+<p class="notice"><b>Private reports.</b> {{ copy.notices.private_ticket }}</p>
+<p class="notice"><b>Channels.</b> {{ copy.notices.no_poc_in_channels }}</p>
+<p class="notice"><b>This desk.</b> {{ copy.notices.in_scope }}</p>
+</div>
+{% endblock %}
