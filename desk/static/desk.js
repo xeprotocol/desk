@@ -25,6 +25,33 @@
   }
   const reload = () => location.reload();
 
+  // ---- shell: theme, cog menu, mobile nav (as on the governance site) -------------------------
+  const THEME_KEY = "xe-desk-theme";
+  const theme = () => document.documentElement.dataset.theme === "light" ? "light" : "dark";
+  function setTheme(t, animate) {
+    const html = document.documentElement;
+    if (animate && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      html.classList.add("g-theming"); setTimeout(() => html.classList.remove("g-theming"), 320);
+    }
+    html.dataset.theme = t;
+    try { localStorage.setItem(THEME_KEY, t); } catch (e) {}
+    const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.content = t === "light" ? "#fafafa" : "#0a0a0a";
+    $$("[data-theme-label]").forEach(el => { el.textContent = t === "dark" ? "Light theme" : "Dark theme"; });
+  }
+  document.addEventListener("DOMContentLoaded", () => {
+    $$("[data-theme-label]").forEach(el => { el.textContent = theme() === "dark" ? "Light theme" : "Dark theme"; });
+    const tt = $("#theme-toggle"); if (tt) tt.addEventListener("click", () => setTheme(theme() === "dark" ? "light" : "dark", true));
+    const cog = $("#cog-menu"), pop = $("#cog-pop");
+    if (cog && pop) {
+      const close = () => { pop.hidden = true; cog.setAttribute("aria-expanded", "false"); };
+      cog.addEventListener("click", e => { e.stopPropagation(); const open = pop.hidden; pop.hidden = !open; cog.setAttribute("aria-expanded", String(open)); });
+      document.addEventListener("click", e => { if (!pop.hidden && !pop.contains(e.target)) close(); });
+      document.addEventListener("keydown", e => { if (e.key === "Escape") close(); });
+    }
+    const nb = $("#nav-btn"), mn = $("#mobile-nav");
+    if (nb && mn) nb.addEventListener("click", () => { mn.hidden = !mn.hidden; nb.setAttribute("aria-expanded", String(!mn.hidden)); });
+  });
+
   // ---- base64url for WebAuthn -----------------------------------------------------------------
   const b64u = {
     enc: (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""),

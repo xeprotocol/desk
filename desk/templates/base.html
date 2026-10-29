@@ -1,13 +1,13 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light">
-<meta name="theme-color" content="#ffffff">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0a">
 <meta name="referrer" content="no-referrer">
 {% if csrf %}<meta name="desk-csrf" content="{{ csrf }}">{% endif %}
 <title>{% block title %}{{ site_name }}{% endblock %} · {{ badge }}</title>
+<script>(function(){try{var t=localStorage.getItem("xe-desk-theme");if(t!=="light"&&t!=="dark"){t=matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"}document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="theme-color"]');if(m)m.content=t==="light"?"#fafafa":"#0a0a0a"}catch(e){}})();</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
@@ -18,32 +18,86 @@
 <body>
 {% import "_macros.html" as m with context %}
 {% set mark = m.mark %}
-<header>
-  <div class="wrap">
-    <nav>
-      <a class="brand" href="/" aria-label="{{ site_name }}, home">{{ mark() }}<span class="word">{{ "Support" if site == "support" else "Bounty" }}</span> <span class="badge {{ badge }}">{{ badge }}</span></a>
-      {# Two front doors, two menus. The bounty is for researchers; support is for people who run nodes and hold XE. Neither lists the other. #}
+{% set door = "/ask" if site == "support" else "/report" %}
+{% set door_label = copy.labels.ask if site == "support" else copy.labels.report %}
+<header class="header">
+  <div class="wrap header-inner">
+    <a class="brand-lockup" href="/" aria-label="{{ site_name }}, home">{{ mark() }}<span class="brand-word">{{ "Support" if site == "support" else "Bounty" }}</span></a>
+    {# Two front doors, two menus. The bounty is for researchers; support is for holders and the community. Neither lists the other. #}
+    <nav class="nav" aria-label="Main">
       {% if site == "support" %}
-      <a href="/" {% if path == "/" %}class="active"{% endif %}>{{ copy.labels.questions }}</a>
+      <a href="/" {% if path == "/" %}aria-current="page"{% endif %}>{{ copy.labels.questions }}</a>
       {% else %}
-      <a href="/" {% if path == "/" %}class="active"{% endif %}>{{ copy.labels.reports }}</a>
-      <a href="/scope" {% if path == "/scope" %}class="active"{% endif %}>{{ copy.labels.scope }}</a>
-      <a href="/leaderboard" {% if path == "/leaderboard" %}class="active"{% endif %}>{{ copy.labels.leaderboard }}</a>
+      <a href="/" {% if path == "/" %}aria-current="page"{% endif %}>{{ copy.labels.reports }}</a>
+      <a href="/scope" {% if path == "/scope" %}aria-current="page"{% endif %}>{{ copy.labels.scope }}</a>
+      <a href="/leaderboard" {% if path == "/leaderboard" %}aria-current="page"{% endif %}>{{ copy.labels.leaderboard }}</a>
       {% endif %}
-      <a href="/log" {% if path.startswith("/log") %}class="active"{% endif %}>{{ copy.labels.log }}</a>
+      <a href="/log" {% if path.startswith("/log") %}aria-current="page"{% endif %}>{{ copy.labels.log }}</a>
       {% if team %}
-      {% if site == "bounty" %}<a href="/team/release" {% if path == "/team/release" %}class="active"{% endif %}>{{ copy.labels.release }}</a>{% endif %}
-      <a href="/team/outbox" {% if path == "/team/outbox" %}class="active"{% endif %}>{{ copy.labels.outbox }}</a>
-      <a href="/team/account" class="who" title="{{ p.user.email }}">{{ p.name }}</a>
+      {% if site == "bounty" %}<a href="/team/release" {% if path == "/team/release" %}aria-current="page"{% endif %}>{{ copy.labels.release }}</a>{% endif %}
+      <a href="/team/outbox" {% if path == "/team/outbox" %}aria-current="page"{% endif %}>{{ copy.labels.outbox }}</a>
       {% elif me %}
-      <a href="/my" {% if path == "/my" %}class="active"{% endif %}>{{ copy.labels.my_questions if site == "support" else copy.labels.my_reports }}</a>
-      <a href="/account" class="who" title="account">{{ me.display_name or me.github_login or me.email or "you" }}</a>
-      <a href="{{ '/ask' if site == 'support' else '/report' }}" class="cta">{{ copy.labels.ask if site == "support" else copy.labels.report }}</a>
-      {% else %}
-      <a href="/signin" {% if path == "/signin" %}class="active"{% endif %}>{{ copy.labels.signin }}</a>
-      <a href="{{ '/ask' if site == 'support' else '/report' }}" class="cta">{{ copy.labels.ask if site == "support" else copy.labels.report }}</a>
+      <a href="/my" {% if path == "/my" %}aria-current="page"{% endif %}>{{ copy.labels.my_questions if site == "support" else copy.labels.my_reports }}</a>
       {% endif %}
     </nav>
+    <div class="header-tools">
+      <span class="tools-group hide-sm">
+        <span class="net-chip" title="{{ network_id or 'node unreachable' }}"><span class="dot {{ 'pulse' if network_id else 'caution' }}" aria-hidden="true"></span><span class="badge-word">{{ badge }}</span></span>
+        <span class="tools-sep" aria-hidden="true"></span>
+      </span>
+      {% if team %}
+      <a href="/team/account" class="who hide-sm" title="{{ p.user.email }}">{{ p.name }}</a>
+      {% elif me %}
+      <a href="/account" class="who hide-sm" title="account">{{ me.display_name or me.github_login or me.email or "you" }}</a>
+      <a href="{{ door }}" class="btn btn-primary cta">{{ door_label }}</a>
+      {% else %}
+      <a href="/signin" class="who hide-sm" {% if path == "/signin" %}aria-current="page"{% endif %}>{{ copy.labels.signin }}</a>
+      <a href="{{ door }}" class="btn btn-primary cta">{{ door_label }}</a>
+      {% endif %}
+      <div class="dropdown">
+        <button type="button" class="icon-btn cog-btn" id="cog-menu" aria-label="Menu" aria-haspopup="menu" aria-expanded="false">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+        </button>
+        <div class="dropdown-menu" id="cog-pop" role="menu" hidden>
+          <button type="button" role="menuitem" class="menu-item" id="theme-toggle"><span class="mi-ico" aria-hidden="true">◐</span><span data-theme-label>Light theme</span></button>
+          <div class="menu-sep" role="separator"></div>
+          {% if team %}<a role="menuitem" class="menu-item" href="/team/account">Account · {{ p.name }}</a>{% elif me %}<a role="menuitem" class="menu-item" href="/account">Account</a>{% else %}<a role="menuitem" class="menu-item" href="/signin">{{ copy.labels.signin }}</a>{% endif %}
+          {% if team %}<a role="menuitem" class="menu-item" href="/team/tokens">Agent tokens</a>{% else %}<a role="menuitem" class="menu-item" href="/team/login">Team sign-in</a>{% endif %}
+          <div class="menu-sep" role="separator"></div>
+          <a role="menuitem" class="menu-item" href="/v1">The desk's API</a>
+          <a role="menuitem" class="menu-item" href="{{ path|md_path }}">This page as markdown</a>
+          <a role="menuitem" class="menu-item" href="/llms.txt">llms.txt</a>
+          <a role="menuitem" class="menu-item" href="/live">Live log</a>
+          <a role="menuitem" class="menu-item" href="{{ bounty_url if site == 'support' else support_url }}">{{ "Bug bounty" if site == "support" else "Support" }}</a>
+          <a role="menuitem" class="menu-item" href="https://github.com/xeprotocol/desk" target="_blank" rel="noopener noreferrer">Source</a>
+        </div>
+      </div>
+      <button type="button" class="icon-btn menu-btn" id="nav-btn" aria-label="Navigation" aria-expanded="false" aria-controls="mobile-nav">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="mobile-nav wrap" id="mobile-nav" hidden>
+    {% if site == "support" %}
+    <a class="mobile-nav-item" href="/" {% if path == "/" %}aria-current="page"{% endif %}>{{ copy.labels.questions }}</a>
+    {% else %}
+    <a class="mobile-nav-item" href="/" {% if path == "/" %}aria-current="page"{% endif %}>{{ copy.labels.reports }}</a>
+    <a class="mobile-nav-item" href="/scope">{{ copy.labels.scope }}</a>
+    <a class="mobile-nav-item" href="/leaderboard">{{ copy.labels.leaderboard }}</a>
+    {% endif %}
+    <a class="mobile-nav-item" href="/log">{{ copy.labels.log }}</a>
+    {% if team %}
+    {% if site == "bounty" %}<a class="mobile-nav-item" href="/team/release">{{ copy.labels.release }}</a>{% endif %}
+    <a class="mobile-nav-item" href="/team/outbox">{{ copy.labels.outbox }}</a>
+    <a class="mobile-nav-item" href="/team/account">{{ p.name }}</a>
+    {% elif me %}
+    <a class="mobile-nav-item" href="/my">{{ copy.labels.my_questions if site == "support" else copy.labels.my_reports }}</a>
+    <a class="mobile-nav-item" href="/account">Account</a>
+    {% else %}
+    <a class="mobile-nav-item" href="/signin">{{ copy.labels.signin }}</a>
+    {% endif %}
+    <a class="mobile-nav-item" href="{{ door }}">{{ door_label }}</a>
+    <span class="mobile-nav-item k">{{ badge }} · {{ network_id or "node unreachable" }}</span>
   </div>
 </header>
 <main><div class="wrap">
@@ -58,11 +112,9 @@
     <span>·</span><a href="/v1">API</a>
     <span>·</span><a href="{{ path|md_path }}">this page as markdown</a>
     <span>·</span><a href="/llms.txt">llms.txt</a>
-    <span>·</span><a href="/live">live</a>
     {% if head %}<span>·</span><a href="/v1/log/head">log head {{ head.hash|short }}</a>{% endif %}
     {% if site == "support" %}<span>·</span><a href="{{ bounty_url }}">bug bounty</a>{% else %}<span>·</span><a href="{{ support_url }}">support</a>{% endif %}
     <span>·</span><a href="https://github.com/xeprotocol/xe/issues">github</a>
-    {% if not team %}<span>·</span><a href="/team/login">team</a>{% endif %}
     <span>·</span><a href="https://xe.network">xe.network</a>
   </div>
 </div></footer>
