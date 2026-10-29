@@ -14,7 +14,7 @@ from typing import Any
 
 import yaml
 
-from .models import AREAS, EFFORTS, GATES, TIERS, VERDICTS
+from .models import AREAS, EFFORTS, GATES, TIERS, TOPICS, VERDICTS
 
 
 def _sha256_file(path: Path) -> str:
@@ -66,6 +66,16 @@ class Config:
         return {k: str(v) for k, v in (self.desk.get("areas") or {}).items() if k in AREAS} or {
             a: a for a in AREAS
         }
+
+    @property
+    def topics(self) -> dict[str, str]:
+        return {k: str(v) for k, v in (self.desk.get("topics") or {}).items() if k in TOPICS} or {
+            a: a for a in TOPICS
+        }
+
+    def area_vocab(self, kind: str) -> dict[str, str]:
+        """What `area` means on a ticket of this kind: engineering areas on the bounty, topics on support."""
+        return self.topics if kind == "support" else self.areas
 
     @property
     def verdicts(self) -> dict[str, str]:

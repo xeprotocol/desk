@@ -27,6 +27,17 @@ areas:
   ops-testnet:    Ops / testnet
   other:          Other
 
+# Support topics, the support door's "areas". Plain words for people who are not engineers.
+topics:
+  getting-started:   Getting started
+  launch-token:      Launch and the token
+  wallet-keys:       Wallet and keys
+  sending-receiving: Sending and receiving
+  nodes:             Running a node
+  testnet-faucet:    Testnet and faucet
+  safety:            Scams and safety
+  other:             Other
+
 verdicts:
   valid:        Valid
   likely-valid: Likely valid

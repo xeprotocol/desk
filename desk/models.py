@@ -43,6 +43,18 @@ AREAS = (
     "ops-testnet",
     "other",
 )
+# Support questions are filed under a topic, not an engineering area: the people asking hold XE or want to,
+# and sort their questions by what they are trying to do. Stored in the same `area` column.
+TOPICS = (
+    "getting-started",
+    "launch-token",
+    "wallet-keys",
+    "sending-receiving",
+    "nodes",
+    "testnet-faucet",
+    "safety",
+    "other",
+)
 TIERS = ("critical", "severe", "high", "medium", "minor", "none")
 VERDICTS = (
     "valid",

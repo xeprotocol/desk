@@ -168,6 +168,7 @@ def render_template(ctx: Context, name: str, t: Ticket, **extra: str) -> str:
         "patch_refs": extra.pop("patch_refs", "the linked PR"),
         "what": extra.pop("what", "a reproduction"),
         "reason": extra.pop("reason", ""),
+        "answer": extra.pop("answer", "(the answer goes here)"),
     }
     values.update(extra)
     try:

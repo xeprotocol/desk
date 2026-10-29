@@ -26,6 +26,7 @@ from ..models import (
     SOURCES,
     STATUSES,
     TIERS,
+    TOPICS,
     VERDICTS,
     VISIBILITIES,
     IdCounter,
@@ -382,6 +383,8 @@ async def set_facts(
         if k not in FACT_VOCAB:
             raise HTTPException(400, f"{k} is not a fact field")
         vocab = FACT_VOCAB[k]
+        if k == "area":
+            vocab = TOPICS if t.kind == "support" else AREAS
         if v in ("", None):
             v = "" if k == "internal_ref" else None
         elif vocab is not None and v not in vocab:

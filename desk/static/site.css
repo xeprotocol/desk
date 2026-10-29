@@ -242,3 +242,6 @@ input[type=password]:focus { outline:none; border-color:var(--ink); }
 .compose.reporter textarea { min-height:120px; }
 code.mono { font-family:var(--mono); font-size:13px; word-break:break-all; }
 .pill.private { border-color:var(--ink); color:var(--ink); }
+a.card.topic { display:block; color:inherit; transition:background .2s ease; }
+a.card.topic:hover { background:var(--brand-soft); text-decoration:none; }
+a.card.topic h3 { color:var(--fg); } a.card.topic p { font-size:14px; }

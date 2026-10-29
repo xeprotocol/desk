@@ -119,6 +119,7 @@ async def set_kind(ctx: Ctx, db: Db, who: Who, request: Request, tid: str, kind:
         raise HTTPException(400, "kind is bounty or support, and must change")
     old = t.kind
     t.kind = kind
+    t.area = None  # areas are engineering areas on the bounty and topics on support; neither carries over
     if kind == "support" and t.status not in ("new", "triaging", "needs-info", "closed"):
         await tsvc.set_status(
             ctx, db, who.principal, t, "triaging", force=True, reason="converted to support"

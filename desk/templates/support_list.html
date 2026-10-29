@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ site_name }}{% endblock %}
+{% block content %}
+{% macro flt(name, value, label) -%}
+  {%- set cur = f|attr(name) -%}
+  {%- set qs = {"status": f.status, "area": f.area, "sort": f.sort, "q": f.q, "pending": f.pending} -%}
+  {%- set _ = qs.update({name: (None if cur == value and name not in ("status", "sort") else value)}) -%}
+  <a href="/?{% for k, v in qs.items() if v not in (None, "", False) %}{{ k }}={{ v|urlencode }}&{% endfor %}" class="{{ 'on' if cur == value else '' }}">{{ label }}</a>
+{%- endmacro %}
+
+<div class="statement"><div>
+  <h1>{{ site_copy.headline }}</h1>
+  <p class="punch">{{ site_copy.punchline }}</p>
+</div></div>
+<p class="sub">{{ site_copy.sub }}</p>
+
+<div class="row" style="margin:-16px 0 32px">
+  <a class="button" href="/ask">{{ copy.labels.ask }}</a>
+  <span class="k">{{ site_copy.ask }}</span>
+</div>
+
+<div class="grid" style="margin-bottom:36px">
+  {% for key, label in cfg.topics.items() if key != "other" %}
+  <a class="card topic" href="/?area={{ key }}">
+    <h3>{{ label }}</h3>
+    <p>{{ site_copy.topics.get(key, "") }}</p>
+  </a>
+  {% endfor %}
+</div>
+
+<p class="notice"><b>{{ site_copy.safety_lead }}</b> {{ site_copy.safety }}</p>
+
+<div class="counts">
+  <div><b>{{ counts.open }}</b>{{ copy.labels.open }}</div>
+  <div><b>{{ counts.closed }}</b>{{ copy.labels.answered }}</div>
+  {% if team and pend %}<div><b>{{ pend.values()|sum }}</b>pending proposals</div>{% endif %}
+</div>
+
+<div class="filters">
+  {{ flt("status", "all", "All") }}{{ flt("status", "open", "Open") }}{{ flt("status", "closed", copy.labels.answered) }}
+  <span class="sep">·</span>
+  {% for k, v in cfg.topics.items() %}{{ flt("area", k, v) }}{% endfor %}
+  <span class="sep">·</span>
+  {{ flt("sort", "updated", "Recently answered") }}{{ flt("sort", "age", "Newest") }}
+  {% if team %}<span class="sep">·</span><a href="/?status=open&pending=true" class="{{ 'on' if f.pending }}">Pending proposals</a>{% endif %}
+</div>
+
+<form method="get" action="/" class="row" style="margin:0 0 20px">
+  <input type="text" name="q" value="{{ f.q or '' }}" placeholder="search questions" style="max-width:420px">
+  <button class="ghost mini" type="submit">Search</button>
+</form>
+
+{% if not tickets %}
+<p class="mute">{% if f.q or f.area %}Nothing matches. {% endif %}{{ site_copy.empty }} <a href="/ask">{{ copy.labels.ask }}</a>.</p>
+{% else %}
+<table class="tickets">
+<thead><tr>
+  <th>#</th><th>Question</th><th>Status</th><th>Topic</th>{% if team %}<th>Source</th><th>Internal</th>{% endif %}<th class="right">Asked</th>
+</tr></thead>
+<tbody>
+{% for t in tickets %}
+<tr>
+  <td class="n">{{ m.tlink(t) }}{% if t.visibility == "private" %} <span class="pill private">private</span>{% endif %}</td>
+  <td class="title"><a href="/support/{{ t.id }}">{{ t.title }}</a>
+    <span class="k">{% if t.duplicate_of %}same as {{ t.duplicate_of }}{% endif %}{% if team and pend.get(t.id) %} · <span class="pill pending">{{ pend[t.id] }} pending</span>{% endif %}</span></td>
+  <td>{{ m.status(t) }}</td>
+  <td>{{ cfg.topics.get(t.area, t.area) if t.area else "—" }}</td>
+  {% if team %}<td>{{ m.source(t) }}</td><td class="mono">{{ t.internal_ref or "—" }}</td>{% endif %}
+  <td class="right num">{{ (t.source_created_at or t.created_at)|day }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+<p class="k">{{ tickets|length }} shown. Append <code>.md</code> to this page for markdown.</p>
+{% endif %}
+
+{% if split %}<p class="sub k" style="margin-top:36px">{{ site_copy.crosslink.replace("{bounty_url}", bounty_url) }}</p>{% endif %}
+{% endblock %}

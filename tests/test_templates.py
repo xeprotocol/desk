@@ -79,4 +79,5 @@ def test_llms_txt_shape(config):
     assert sup.startswith("# XE Support")
     assert "https://support.xe.network/index.md" in sup and "kind=support" in sup
     assert "/scope.md" not in sup and "/leaderboard.md" not in sup and "https://bounty.xe.network" in sup
+    assert "area=wallet-keys" in sup and "/ask" in sup and "seed" in sup
     assert lint_public_copy(config, [sup]) == []

@@ -154,19 +154,22 @@ async def llms_txt(request: Request):
 @router.get("/", response_class=HTMLResponse)
 async def home(
     request: Request,
-    status: str = "open",
+    status: str | None = None,
     area: str | None = None,
     gate: str | None = None,
     tier: str | None = None,
     verdict: str | None = None,
     pending: bool | None = None,
     q: str | None = None,
-    sort: str = "severity",
+    sort: str | None = None,
 ):
     c = get_context()
-    kind = site_for(
-        request
-    )  # the front door decides: bounty reports on one host, support questions on the other
+    # The front door decides: bounty reports on one host, support questions on the other. The bounty
+    # opens on open reports by severity; support opens on everything by last update, since an answered
+    # question is the point of the page, not something to hide behind a filter.
+    kind = site_for(request)
+    status = status or ("all" if kind == "support" else "open")
+    sort = sort or ("updated" if kind == "support" else "severity")
     async with session() as db:
         p, csrf = await principal(db, request)
         f = Filters(
@@ -189,7 +192,7 @@ async def home(
         head = await EventLog.head(db)
     return render(
         request,
-        "list.html",
+        "support_list.html" if kind == "support" else "list.html",
         {
             "p": p,
             "csrf": csrf,

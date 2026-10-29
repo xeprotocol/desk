@@ -14,11 +14,11 @@
   <p class="punch">{{ site_copy.punchline }}</p>
 </div></div>
 <p class="sub">{{ site_copy.sub }}</p>
-{% if kind == "support" %}
-<p class="sub k">{{ site_copy.ask }} {{ site_copy.crosslink.replace("{bounty_url}", bounty_url) }}</p>
-{% elif split %}
-<p class="sub k">{{ copy.bounty_crosslink.replace("{support_url}", support_url) }}</p>
-{% endif %}
+<div class="row" style="margin:-16px 0 32px">
+  <a class="button" href="/report">{{ copy.labels.report }}</a>
+  <span class="k">{{ copy.report.after }}</span>
+</div>
+{% if split %}<p class="sub k">{{ copy.bounty_crosslink.replace("{support_url}", support_url) }}</p>{% endif %}
 
 <div class="counts">
   <div><b>{{ counts.open }}</b>{{ copy.labels.open }}</div>

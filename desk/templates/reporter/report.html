@@ -24,8 +24,9 @@
     </div>
   </div>
   {% else %}
-  <label for="area" style="margin-top:16px">About</label>
-  <select id="area" name="area"><option value="">Not sure</option>{% for a, label in cfg.areas.items() %}<option value="{{ a }}">{{ label }}</option>{% endfor %}</select>
+  <p class="notice" style="margin:16px 0"><b>{{ rc.ask_safety }}</b></p>
+  <label for="area">Topic</label>
+  <select id="area" name="area"><option value="">Not sure</option>{% for a, label in cfg.topics.items() %}<option value="{{ a }}">{{ label }}</option>{% endfor %}</select>
   {% endif %}
 
   <label for="body" style="margin-top:16px">{{ "Details" if kind == "support" else "Report" }}</label>
@@ -40,9 +41,9 @@
   </div>
   {% endif %}
 
-  <label for="files" style="margin-top:16px">Attachments <span class="k">(up to {{ max_files }}, {{ max_mb }} MB each)</span></label>
+  <label for="files" style="margin-top:16px">{{ "Screenshots" if kind == "support" else "Attachments" }} <span class="k">(up to {{ max_files }}, {{ max_mb }} MB each)</span></label>
   <input type="file" id="files" name="files" multiple>
-  <p class="k">{{ rc.files_note }}</p>
+  <p class="k">{% if kind == "support" %}A screenshot of the message or the error, if there is one. Cover anything personal first; questions are public.{% else %}{{ rc.files_note }}{% endif %}</p>
 
   <div class="row" style="margin-top:24px">
     <button type="submit" id="report-submit">{{ "Ask" if kind == "support" else "File the report" }}</button>

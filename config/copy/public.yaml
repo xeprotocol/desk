@@ -14,21 +14,37 @@ footer_line: The bounty desk for the agent-native network, run in the open.
 kicker: Bounty
 punchline: Read in private. Answered in public. Paid at genesis.
 # Pointer shown on the bounty site, for people who arrived with a question rather than a bug.
-bounty_crosslink: Not a bug? Questions about nodes, wallets, the faucet or the network go to {support_url}.
+bounty_crosslink: >-
+  Not a bug? Questions about XE, the launch, wallets, keys or getting started go to {support_url}.
 
-# The support site. Its own front door, its own copy: for people who run nodes, hold XE or are getting
-# started, not for security researchers. Nothing about tiers, awards or disclosure appears here.
+# The support site. Its own front door, its own copy: for people who hold XE or want to, who are getting
+# started, who have a wallet question or have seen something that looks like a scam. Not for engineers
+# and not for security researchers. Nothing about tiers, awards, areas or disclosure appears here.
 support:
-  headline: Questions, answered in the open.
+  headline: Questions about XE, answered in the open.
   punchline: Asked once. Answered for everyone.
   sub: >-
-    Help with running a node, the wallet, the faucet, the testnet and the network itself. Every question
-    becomes a ticket, every answer is public, and what is answered once is searchable for the next person.
+    When does the token launch. How do I get a wallet. I have lost my key. Is this message really from XE.
+    Ask here; the team answers in public, the answer stays, and the next person with the same question
+    finds it before they need to ask.
   footer_line: Community support for the agent-native network, run in the open.
-  crosslink: Found a security bug? That is the bounty, at {bounty_url}. Report it there, not here.
-  ask: >-
-    Sign in and ask at /ask. Questions arriving by GitHub, email, Discord or Telegram become tickets
-    here too.
+  crosslink: >-
+    Found a way to break the network, steal funds or forge a transaction? That is a security bug, and
+    it goes to the bounty at {bounty_url}, in private. Do not post it here.
+  ask: Sign in with GitHub, an email link or your XE key; it takes a minute.
+  empty: No questions under this heading yet.
+  safety_lead: Nobody from XE will ever ask for your seed, private key or password.
+  safety: >-
+    Not here, not by email, not in a chat. If someone does, it is a scam; say so under Scams and safety
+    and the team will warn everyone. Never paste a seed or key into a question.
+  topics:
+    getting-started: What XE is, how to take part, where the testnet and the explorer are.
+    launch-token: Mainnet, genesis, when and how the token becomes available, what is known and what is not.
+    wallet-keys: Making a wallet, keeping the seed safe, what can and cannot be recovered.
+    sending-receiving: Transactions, addresses, fees, something that did not arrive.
+    nodes: Running a node at home or on a server, what it earns, what it needs.
+    testnet-faucet: Testnet XE, the faucet, resets and what carries over.
+    safety: Impersonators, fake airdrops, phishing. Check before you click.
 
 labels:
   tickets: Tickets
@@ -55,6 +71,7 @@ labels:
   disclosed: Disclosed
   awarded: Awarded
   paid: Paid
+  answered: Answered
   signin: Sign in
   report: Report a bug
   ask: Ask a question
@@ -86,11 +103,16 @@ report:
   terms_line: Filing accepts the programme rules at
   ask_headline: Ask a question.
   ask_sub: >-
-    About running a node, the wallet, the faucet, the testnet or the network. The answer is public and
-    stays, so the next person finds it too. Do not put secrets or seeds in a question.
-  ask_title_hint: What you want to know, in one line
-  ask_body_hint: What you tried, what you saw, which version you are on.
-  ask_after: You get an id and a page to follow it on. Answers come from the team and from the community.
+    Anything about XE: the launch, a wallet, a key, a transaction, a node, something that looks wrong.
+    The answer is public and stays, so the next person finds it too.
+  ask_safety: >-
+    Never put a seed, private key or password in a question. Nobody from XE will ask for one, and a
+    question is public the moment it is filed.
+  ask_title_hint: Your question, in one line
+  ask_body_hint: >-
+    What you are trying to do, what happened, and anything you have already tried. If it is about a
+    transaction, the transaction id helps; if it is about a message you received, where it came from.
+  ask_after: You get an id and a page to follow it on. The team reads everything within a day.
   payout_none: >-
     No payout address yet. An accepted report cannot be paid until one is bound, and binding means
     proving you hold the key: a signature from that key, made here in your browser.
@@ -127,6 +149,24 @@ reply_templates:
     Read. {reason} Closing; reply here if there is a reproduction we have missed.
   notice: |-
     Noted, and thank you for flagging the campaign ahead of time. Nothing to action from this one.
+  # Support answers. Plain, short, no dates nobody has announced.
+  support_answered: |-
+    {answer}
+
+    Closing this as answered so the next person finds it; reply here if it did not resolve it for you.
+  support_launch: |-
+    There is no announced date. Mainnet follows the testnet, and the token exists from mainnet genesis;
+    when a date is set it will be on xe.network first, not in a private message or a chat. Anything
+    claiming otherwise is not from us.
+  support_lost_key: |-
+    A seed or private key cannot be recovered by anyone, including the team: the network has no copy
+    and no reset. If you still have the seed written down anywhere, the wallet can be restored from it
+    on any device. If not, the funds at that address cannot be moved. New wallet, new seed, written
+    down and kept offline.
+  support_scam: |-
+    That is not from XE. Nobody on the team will ever ask for a seed, private key or password, or send
+    a link to "verify" or "claim" anything. Do not reply to it, do not click it, and if you entered a
+    seed anywhere, move funds to a new wallet now. Thank you for asking first.
 
 bots:
   created: "Logged as {ticket_id}. Follow it at {ticket_url}. Replies here go to the same place."

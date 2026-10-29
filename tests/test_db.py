@@ -373,6 +373,22 @@ async def test_reporter_withdraws_and_replies(ctx, db):
     assert e.value.status_code == 403
 
 
+async def test_support_questions_take_topics_not_areas(ctx, db):
+    r = await rsvc.from_email(ctx, db, "gail@example.org", link_to=None)
+    body = "I wrote the seed down when I made the wallet but the paper is gone. Is there any way back in?"
+    f = rsvc.Filing(kind="support", title="I have lost my key", body=body, area="wallet-keys")
+    t = await rsvc.file_ticket(ctx, db, r, f)
+    assert t.kind == "support" and t.area == "wallet-keys" and t.visibility == "public"
+    # a bounty area is not a topic; it is dropped on filing and refused on edit
+    f2 = rsvc.Filing(kind="support", title="When does the token launch", body=body, area="consensus")
+    assert (await rsvc.file_ticket(ctx, db, r, f2)).area is None
+    team = await _team(ctx, db)
+    with pytest.raises(HTTPException):
+        await tsvc.set_facts(ctx, db, team, t, {"area": "consensus"})
+    await tsvc.set_facts(ctx, db, team, t, {"area": "safety"})
+    assert t.area == "safety"
+
+
 async def test_payout_binding_needs_matching_key(ctx, db):
     r = await rsvc.from_email(ctx, db, "erin@example.org", link_to=None)
     body = "A public report with enough body to be accepted by the filing checks, no secrets inside."

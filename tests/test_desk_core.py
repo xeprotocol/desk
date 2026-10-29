@@ -16,11 +16,13 @@ from desk.canonical import DOMAIN_EVENT, DOMAIN_LOGIN, DOMAIN_PAYOUT, canonical_
 from desk.log import event_hash
 from desk.models import (
     AGENT_SCOPES,
+    AREAS,
     CLOSED_REASONS,
     EFFORTS,
     GATES,
     STATUSES,
     TIERS,
+    TOPICS,
     VERDICTS,
     AgentToken,
     Ticket,
@@ -237,6 +239,9 @@ def test_config_vocabularies_match_code(config):
     assert config.ceiling_micro("severe") == 25_000 * 1_000_000
     assert config.ceiling_micro(None) == 0
     assert set(config.verdicts) == set(VERDICTS)
+    assert set(config.topics) == set(TOPICS) and set(config.areas) == set(AREAS)
+    assert config.area_vocab("support") == config.topics and config.area_vocab("bounty") == config.areas
+    assert not (set(TOPICS) & set(AREAS) - {"other"})  # the two vocabularies do not overlap
     assert set(config.gates) == set(GATES)
     assert set(config.effort_bands) == set(EFFORTS)
     assert config.effort_hours("1-4h") == (2.5, 0.5)

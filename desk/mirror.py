@@ -210,18 +210,24 @@ def build_llms_txt(
                 how,
                 "",
                 "## Start here",
-                link("/index.md", "Open questions", "every public support ticket, newest first"),
+                link("/ask", "Ask a question", "sign in and ask; the answer is public and stays"),
+                link("/index.md", "Questions", "everything asked and answered, most recently answered first"),
+                *[
+                    link(f"/index.md?area={k}", v, (sc.get("topics") or {}).get(k, ""))
+                    for k, v in cfg.topics.items()
+                    if k != "other"
+                ],
                 link("/log.md", "Log", "the hash-chained public log of everything the desk does"),
                 link("/live", "Live", "the log as it happens; `/v1/events/stream` is the stream itself"),
                 "",
                 "## Tickets",
-                link("/ask", "Ask a question", "sign in and ask; the answer is public and stays"),
                 link(
                     "/support/XS-0001.md",
                     "A ticket",
                     "the question, the answer, the public thread; replace the id",
                 ),
-                link("/v1/tickets?kind=support&status=open", "Tickets JSON", "the same list, filterable"),
+                link("/v1/tickets?kind=support&status=all", "Tickets JSON", "the same list, filterable"),
+                f"- {sc.get('safety_lead', '')} {sc.get('safety', '')}".strip(),
                 "",
                 *common_api,
                 "## Optional",

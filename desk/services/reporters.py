@@ -28,7 +28,7 @@ from xe.keys import KeyError_, derive_address
 from ..auth import Verified
 from ..authz import Principal
 from ..context import Context
-from ..models import AREAS, TIERS, Attachment, Reporter, Ticket
+from ..models import AREAS, TIERS, TOPICS, Attachment, Reporter, Ticket
 from . import thread
 from . import tickets as tsvc
 from .tickets import NewTicket, utcnow
@@ -225,12 +225,12 @@ async def file_ticket(ctx: Context, db: AsyncSession, r: Reporter, f: Filing) ->
     if len(title) > 200:
         raise HTTPException(400, "the title is too long (200 characters)")
     if len(body) < 40:
-        raise HTTPException(400, "describe what you found: steps, impact, what you expected (40 characters at least)")
+        raise HTTPException(400, "say more: what you did, what happened, what you expected (40 characters at least)")
     if len(body) > 60_000:
         raise HTTPException(400, "the report is too long (60k); attach the rest")
     if f.kind not in ("bounty", "support"):
         raise HTTPException(400, "kind must be bounty or support")
-    area = f.area if f.area in AREAS else None
+    area = f.area if f.area in (TOPICS if f.kind == "support" else AREAS) else None
     tier = f.claimed_tier if f.claimed_tier in TIERS and f.claimed_tier != "none" else None
     private = must_be_private(f)
     if private and not ctx.vault.available:

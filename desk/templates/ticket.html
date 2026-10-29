@@ -10,7 +10,7 @@
     {{ m.status(t) }}
     {% if t.kind == "bounty" %}{{ m.tier(t.assessed_tier) }}{% if t.claimed_tier and t.claimed_tier != t.assessed_tier %}<span class="k">claimed {{ cfg.tier_label(t.claimed_tier) }}</span>{% endif %}{{ m.gate(t.mainnet_gate) }}{% endif %}
     {{ m.source(t) }}
-    <span class="k">filed {{ (t.source_created_at or t.created_at)|dt }}</span>
+    <span class="k">{{ "asked" if t.kind == "support" else "filed" }} {{ (t.source_created_at or t.created_at)|dt }}</span>
     {% if reporter %}<span class="k">by {{ reporter.display_name or reporter.github_login or "a reporter" }}</span>{% endif %}
   </div>
   {% if t.visibility == "private" %}<p class="notice" style="margin-top:18px">{{ copy.notices.private_ticket }}</p>{% endif %}
@@ -30,12 +30,15 @@
     <dt>Effort</dt><dd><span class="show">{{ cfg.effort_label(t.effort_eng) if t.effort_eng else "—" }}{% if t.effort_eng %} <span class="k">· agent {{ cfg.effort_agent(t.effort_eng) }}</span>{% endif %}</span>
       {% if team %}<select class="edit" name="effort_eng"><option value="">—</option>{% for k, v in cfg.effort_bands.items() %}<option value="{{ k }}" {{ "selected" if t.effort_eng == k }}>{{ v.engineer }} · {{ v.agent }}</option>{% endfor %}</select>{% endif %}</dd>
     {% endif %}
-    <dt>Area</dt><dd><span class="show">{{ cfg.areas.get(t.area, t.area) if t.area else "—" }}</span>
-      {% if team %}<select class="edit" name="area"><option value="">—</option>{% for k, v in cfg.areas.items() %}<option value="{{ k }}" {{ "selected" if t.area == k }}>{{ v }}</option>{% endfor %}</select>{% endif %}</dd>
+    {% set vocab = cfg.area_vocab(t.kind) %}
+    <dt>{{ "Topic" if t.kind == "support" else "Area" }}</dt><dd><span class="show">{{ vocab.get(t.area, t.area) if t.area else "—" }}</span>
+      {% if team %}<select class="edit" name="area"><option value="">—</option>{% for k, v in vocab.items() %}<option value="{{ k }}" {{ "selected" if t.area == k }}>{{ v }}</option>{% endfor %}</select>{% endif %}</dd>
     <dt>Duplicate of</dt><dd><span class="show">{% if dup %}{{ m.tlink(dup) }} <span class="k">{{ dup.status }}</span>{% else %}—{% endif %}</span>
       {% if team %}<input class="edit" type="text" name="duplicate_of" value="{{ t.duplicate_of or '' }}" placeholder="XE-0000">{% endif %}</dd>
+    {% if team or t.kind == "bounty" %}
     <dt>Internal</dt><dd><span class="show">{% if t.internal_ref %}{% if internal_url %}<a href="{{ internal_url }}" rel="noopener" class="mono">{{ t.internal_ref }}</a>{% else %}<span class="mono">{{ t.internal_ref }}</span>{% endif %}{% else %}—{% endif %}</span>
       {% if team %}<input class="edit" type="text" name="internal_ref" value="{{ t.internal_ref }}" placeholder="#1047 or faucet#10">{% endif %}</dd>
+    {% endif %}
     {% if team %}
     <dt>Assignee</dt><dd><span class="show">{% for u in team_users if u.id == t.assignee_id %}{{ u.name or u.email }}{% else %}—{% endfor %}</span>
       <select class="edit" name="assignee_id"><option value="">—</option>{% for u in team_users %}<option value="{{ u.id }}" {{ "selected" if t.assignee_id == u.id }}>{{ u.name or u.email }}</option>{% endfor %}</select></dd>
@@ -92,7 +95,7 @@
 </aside>
 
 <section class="thread">
-  <h3>Report</h3>
+  <h3>{{ "Question" if t.kind == "support" else "Report" }}</h3>
   {% if body is none %}
     <div class="sealed">Sealed. The body of a private report opens only for its reporter and the team.</div>
   {% elif body %}
@@ -106,8 +109,8 @@
   <p class="k">Downloads are served as files, never rendered. Open them somewhere safe.</p>
   {% endif %}
 
-  <h3 style="margin-top:36px">Thread</h3>
-  {% if not messages %}<p class="k">Nothing public yet.</p>{% endif %}
+  <h3 style="margin-top:36px">{{ "Answers" if t.kind == "support" else "Thread" }}</h3>
+  {% if not messages %}<p class="k">{% if t.kind == "support" %}Not answered yet. The team reads everything within a day.{% else %}Nothing public yet.{% endif %}</p>{% endif %}
   {% for msg, text in messages %}
   <div class="msg-item">
     <div class="by"><b>{{ msg.author or msg.source }}</b>{% if msg.author_is_team %}<span class="team">team</span>{% endif %}<span>{{ msg.created_at|dt }}</span><span>{{ msg.source }}</span></div>
@@ -117,8 +120,8 @@
 
   {% if team %}
   <div class="compose" style="margin-top:28px">
-    <h3>Reply in public</h3>
-    <div class="templates" style="margin-bottom:8px">{% for name in cfg.reply_templates %}<button type="button" data-template="{{ name }}">{{ name.replace('_', ' ') }}</button>{% endfor %}</div>
+    <h3>{{ "Answer in public" if t.kind == "support" else "Reply in public" }}</h3>
+    <div class="templates" style="margin-bottom:8px">{% for name in cfg.reply_templates if (name.startswith("support_") if t.kind == "support" else not name.startswith("support_")) %}<button type="button" data-template="{{ name }}">{{ name.replace('support_', '').replace('_', ' ') }}</button>{% endfor %}</div>
     <textarea id="reply-body" placeholder="Written by a person, mirrored to the source channel. Nothing here promises an award."></textarea>
     <div class="row">
       <span class="k">{% if t.source == "github" %}Mirrors to {{ t.source_repo }}#{{ t.source_ref }} as a comment.{% else %}Stays on the desk; the reporter is told by email when that is set up.{% endif %}</span>
