@@ -8,7 +8,7 @@ It fixes scope, the data model, the roles, the integrations and the sequencing. 
 
 ## 1. Why
 
-The bounty programme runs on public GitHub issues and a shared mailbox. As of 28 October there are 87 open issues, 36 open PRs, no labels, no maintainer replies, three Severe reports that went public because `security@` bounced, two accounts posting payout wallets into other people's threads, and a leaderboard that updates when the website is redeployed. The triage of all of it is in [`BOUNTY_TRIAGE.md`](BOUNTY_TRIAGE.md), and it lives in a markdown file because there is nowhere else to put it.
+The bounty programme runs on public GitHub issues and a shared mailbox. As of 28 October there are 87 open issues, 36 open PRs, no labels, no maintainer replies, three Severe reports that went public because `security@` bounced, two accounts posting payout wallets into other people's threads, and a leaderboard that updates when the website is redeployed. The triage of all of it is in `BOUNTY_TRIAGE.md` (kept outside the repo: it carries the private email reports), and it lives in a markdown file because there is nowhere else to put it.
 
 The engineering side already works the other way round. The engineering pass on 28 October put an internal ticket against every actionable report (`#1047`–`#1103` opened for it, nine existing ones linked), re-tiered five, marked two partial and ten fixed or closed. None of that reaches GitHub: eleven issues that are fixed or closed internally are still open there with no reply. The gap the desk closes is between the internal tracker, where the work happens, and the public thread, where the reporter is waiting.
 
@@ -295,7 +295,7 @@ The agent clock assumes a human spends a few hours per release on review and a d
 
 ## 17. References
 
-- [`BOUNTY_TRIAGE.md`](BOUNTY_TRIAGE.md): the current state of the queue and the data model this brief copies.
+- `BOUNTY_TRIAGE.md` (not in the repo; private reports): the state of the queue on 28 October and the data model this brief copies.
 - [`MAINNET_REQS.md`](MAINNET_REQS.md): what the DAO harness needs from mainnet; the `before` gate in the desk is the bounty side of the same question.
 - [`BRIEF.md`](BRIEF.md): the DAO harness brief; roles, registers and the recommend/decide rule are inherited from it.
 - [xeprotocol/dao](https://github.com/xeprotocol/dao): the reference implementation; the stack and principles in §14 are the project spec from it, applied to the desk.

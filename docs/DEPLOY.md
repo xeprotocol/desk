@@ -102,6 +102,8 @@ docker compose exec app desk import-internal          # reads xeprotocol/core; `
 docker compose exec app desk github-labels            # creates the desk's status labels on each repo
 ```
 
+The triage document is not in the repo (it carries the private email reports). Copy it to `/opt/desk/secrets/BOUNTY_TRIAGE.md` on the VPS, which the `app` container mounts at `/app/secrets`; the command reads it from there. Already imported on 29 October; this is only for a reset.
+
 For the three email reports, put their bodies in a JSON file and pass `--emails /app/secrets/emails.json` (`{"E1": "...", "E2": "...", "E3": "..."}`); the bodies are sealed on write. Add payout addresses on the ticket pages when the reporters send them.
 
 Then the worker's first `push` run (within a minute) puts the status labels on the issues and closes the ones the desk has closed. Check `/team/outbox`: it lists every ticket that was fixed but whose reporter has not been told. Work through it with the `patched` template.

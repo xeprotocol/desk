@@ -27,4 +27,11 @@ def config():
 
 @pytest.fixture(scope="session")
 def triage_text() -> str:
-    return (ROOT / "docs" / "BOUNTY_TRIAGE.md").read_text(encoding="utf-8")
+    """The real triage doc. It carries private reports, so it is not in the repo; tests that need it are
+    skipped where it is absent. Point DESK_TRIAGE_DOC at a copy to run them."""
+    import os
+
+    path = Path(os.environ.get("DESK_TRIAGE_DOC") or ROOT / "docs" / "BOUNTY_TRIAGE.md")
+    if not path.exists():
+        pytest.skip("docs/BOUNTY_TRIAGE.md is not in the repo (private reports); set DESK_TRIAGE_DOC")
+    return path.read_text(encoding="utf-8")

@@ -334,7 +334,7 @@ def import_internal(
 
 @app.command("import-triage")
 def import_triage(
-    path: Path = typer.Argument(Path("docs/BOUNTY_TRIAGE.md")),
+    path: Path = typer.Argument(Path("/app/secrets/BOUNTY_TRIAGE.md")),
     emails: Path = typer.Option(None, help="JSON {E1: body, E2: body, E3: body} for the private tickets"),
     dry_run: bool = typer.Option(False, help="parse and print the rows; write nothing"),
 ):

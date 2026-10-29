@@ -9,3 +9,5 @@ __pycache__/
 build/
 dist/
 .DS_Store
+# the triage doc carries the private email reports; it lives outside the repo (secrets/ or a local copy)
+docs/BOUNTY_TRIAGE.md

@@ -17,7 +17,7 @@ Every report is a ticket with an id like `XE-0045`. It has one of four sources, 
 | **Email** | The three pre-desk reports (`E1`–`E3`), imported from the triage. Historical; `security@` is retired as a reporting path. | The ticket page. |
 | **Discord** | A support question that turns out to be a bug: `/bounty` in the thread converts it. | The Discord thread, until converted; then the ticket page. |
 
-Imported history: the 90 rows of [`BOUNTY_TRIAGE.md`](BOUNTY_TRIAGE.md) were applied on 29 October. Those tickets already carry a verdict, tier, gate, effort, area and internal ref, plus the triage reasoning as notes under the `triage import` agent token. They are the baseline; everything from here is incremental.
+Imported history: the 90 rows of the triage document (`BOUNTY_TRIAGE.md`, kept outside the repo because it carries the private email reports) were applied on 29 October. Those tickets already carry a verdict, tier, gate, effort, area and internal ref, plus the triage reasoning as notes under the `triage import` agent token. They are the baseline; everything from here is incremental.
 
 The engineering tracker, `xeprotocol/core`, is read, never written. When an internal ticket names a public report (`xe#63` in its title or body), the desk links it as `internal_ref` and follows its state: open → the report is `accepted`; closed as completed → `patched` and into the outbox; closed as not planned → a note for a human to rule on.
 
