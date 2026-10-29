@@ -59,6 +59,8 @@ async def manifest(ctx: Ctx, db: Db):
             "scope": "/v1/scope",
             "openapi": "/v1/openapi.json",
             "agent": {
+                "brief": "GET /v1/agent/brief.md",
+                "me": "GET /v1/me",
                 "notes": "POST /v1/tickets/{id}/notes",
                 "proposals": "POST /v1/tickets/{id}/proposals",
                 "patch_refs": "POST /v1/tickets/{id}/patch-refs",

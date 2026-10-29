@@ -81,3 +81,28 @@ def test_llms_txt_shape(config):
     assert "/scope.md" not in sup and "/leaderboard.md" not in sup and "https://bounty.xe.network" in sup
     assert "area=wallet-keys" in sup and "/ask" in sup and "seed" in sup
     assert lint_public_copy(config, [sup]) == []
+
+
+def test_agent_brief_carries_every_vocabulary(config):
+    from desk.brief import build_agent_brief
+    from desk.models import PROPOSAL_FIELDS, AgentToken
+
+    txt = build_agent_brief(config, "https://bounty.xe.network", "testnet-0005")
+    assert txt.startswith("# Working the XE desk as an agent")
+    for f in PROPOSAL_FIELDS:
+        assert f"`{f}`" in txt
+    for k in list(config.tier_order) + list(config.verdicts) + list(config.gates) + list(config.areas):
+        assert f"| `{k}` |" in txt
+    for k in config.effort_bands:
+        assert f"| `{k}` |" in txt
+    assert "https://bounty.xe.network/v1/tickets/{id}/proposals/bulk" in txt
+    assert "## Your token" not in txt
+    # with a token, its own section leads, and the owner's standing instructions are quoted
+    tok = AgentToken(
+        id=7, model_id="claude", label="daily", scopes=["read:public", "write:notes"],
+        instructions="Only p2p-sync tickets.\nNever propose status.",
+    )
+    mine = build_agent_brief(config, "https://bounty.xe.network", "testnet-0005", token=tok, owner="Ada")
+    assert "## Your token" in mine and "owned by Ada" in mine and "`daily`" in mine
+    assert "> Only p2p-sync tickets." in mine and "> Never propose status." in mine
+

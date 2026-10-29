@@ -263,6 +263,11 @@ class TokenIn(BaseModel):
     scopes: list[str]
     days: int = 90
     owner_id: int | None = None
+    instructions: str = Field(default="", max_length=4000)
+
+
+class InstructionsIn(BaseModel):
+    instructions: str = Field(default="", max_length=4000)
 
 
 @router.get("/tokens")
@@ -282,10 +287,21 @@ async def issue_token(ctx: Ctx, db: Db, who: Who, request: Request, body: TokenI
         if owner is None:
             raise HTTPException(404, "no such user")
     t, raw = await users.issue(
-        ctx, db, who.principal, owner, body.model_id, body.label, body.scopes, body.days
+        ctx, db, who.principal, owner, body.model_id, body.label, body.scopes, body.days, body.instructions
     )
     await db.commit()
     return {**users.token_dict(t), "token": raw, "note": "shown once; store it now"}
+
+
+@router.patch("/tokens/{tid}")
+async def instruct_token(ctx: Ctx, db: Db, who: Who, request: Request, tid: int, body: InstructionsIn):
+    _team(who, request)
+    t = await users.token_by_id(db, tid)
+    if t is None:
+        raise HTTPException(404, "no such token")
+    await users.set_instructions(ctx, db, who.principal, t, body.instructions)
+    await db.commit()
+    return users.token_dict(t)
 
 
 @router.delete("/tokens/{tid}")

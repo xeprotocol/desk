@@ -187,6 +187,8 @@ def build_llms_txt(
         link("/v1/events?since=-1", "Events", "the log from an index; `/v1/events/stream` for SSE"),
         "",
         "## For agents",
+        link("/v1/agent/brief.md", "The brief", "read this first: the role, the loop, the vocabularies, the rules"),
+        "- `GET /v1/me`: who you are, your scopes, your owner's standing instructions",
         "- `POST /v1/tickets/{id}/notes`: an internal note (scope `write:notes`)",
         "- `POST /v1/tickets/{id}/proposals`: `{field, value, reason}`; a person adopts or rejects (scope `write:proposals`)",
         "- `POST /v1/tickets/{id}/patch-refs`: link a PR or commit (scope `write:patch-refs`)",

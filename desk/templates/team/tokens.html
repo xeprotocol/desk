@@ -20,24 +20,27 @@
       <label style="display:inline-flex; gap:6px; align-items:center; margin:0; text-transform:none; font:inherit; color:var(--fg)"><input type="checkbox" name="scopes" value="{{ s }}" {{ "checked" if s in ("read:public", "write:notes", "write:proposals") }}> <code>{{ s }}</code></label>
       {% endfor %}
     </div>
+    <label style="margin-top:14px">Standing instructions <span class="k">optional</span></label>
+    <textarea name="instructions" placeholder="What this agent should focus on or leave alone. Returned by GET /v1/me and folded into its brief; e.g. “Only p2p-sync and node-api tickets. Never propose status.”" style="min-height:72px"></textarea>
     <div class="row" style="margin-top:14px"><button type="submit" class="mini">Issue</button></div>
     <div class="msg" id="token-msg" style="display:none"></div>
   </form>
 </div>
 
 <table class="toks">
-<thead><tr><th>Prefix</th><th>Model</th><th>Label</th><th>Owner</th><th>Scopes</th><th>Expires</th><th>Last used</th><th></th></tr></thead>
+<thead><tr><th>Prefix</th><th>Model</th><th>Label</th><th>Owner</th><th>Scopes</th><th>Instructions</th><th>Expires</th><th>Last used</th><th></th></tr></thead>
 <tbody>
 {% for t in tokens %}
 <tr class="{{ 'mute' if t.revoked_at }}">
   <td><code>{{ t.prefix }}…</code></td><td>{{ t.model_id }}</td><td>{{ t.label }}</td>
   <td>{{ owners[t.owner_id].name or owners[t.owner_id].email if t.owner_id in owners else t.owner_id }}</td>
   <td>{% for s in t.scopes %}<code>{{ s }}</code> {% endfor %}</td>
+  <td class="instr">{% if not t.revoked_at and (is_admin or t.owner_id == p.user.id) %}<span class="name" data-instruct="{{ t.id }}" title="{{ t.instructions }}">{{ t.instructions[:60] ~ ('…' if t.instructions|length > 60) if t.instructions else 'none' }}</span>{% else %}<span class="k" title="{{ t.instructions }}">{{ t.instructions[:60] ~ ('…' if t.instructions|length > 60) if t.instructions else '—' }}</span>{% endif %}</td>
   <td class="num">{{ t.expires_at|day }}</td><td class="num">{{ t.last_used_at|dt }}</td>
   <td class="right">{% if t.revoked_at %}<span class="pill closed">revoked</span>{% else %}<button class="ghost mini" type="button" data-revoke="{{ t.id }}">Revoke</button>{% endif %}</td>
 </tr>
 {% endfor %}
 </tbody>
 </table>
-<p class="k">Calling: <code>Authorization: Bearer desk_…</code> against <code>/v1</code>. See <a href="/llms.txt">llms.txt</a> for the agent's reading list.</p>
+<p class="k">Calling: <code>Authorization: Bearer desk_…</code> against <code>/v1</code>. Point the agent at <a href="/v1/agent/brief.md"><code>/v1/agent/brief.md</code></a> first (<a href="/agent">read it</a>); <a href="/llms.txt">llms.txt</a> is the wider reading list.</p>
 {% endblock %}

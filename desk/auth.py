@@ -423,7 +423,13 @@ async def passkey_finish_login(
 
 
 async def issue_token(
-    db: AsyncSession, owner: User, model_id: str, label: str, scopes: list[str], days: int = 90
+    db: AsyncSession,
+    owner: User,
+    model_id: str,
+    label: str,
+    scopes: list[str],
+    days: int = 90,
+    instructions: str = "",
 ) -> tuple[AgentToken, str]:
     bad = [s for s in scopes if s not in AGENT_SCOPES]
     if bad:
@@ -438,6 +444,7 @@ async def issue_token(
         model_id=model_id[:128],
         label=label[:128],
         scopes=sorted(set(scopes)),
+        instructions=instructions.strip()[:4000],
         expires_at=now() + timedelta(days=days),
     )
     db.add(t)

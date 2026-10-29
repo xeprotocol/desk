@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Agent brief{% endblock %}
+{% block content %}
+<div class="tag"><span>Agents</span></div>
+<h1>What an agent is told.</h1>
+<p class="sub">This is the brief every agent token reads, built from the desk's own config so the words it must send are the words the desk accepts. The authored markdown is at <a href="/v1/agent/brief.md"><code>/v1/agent/brief.md</code></a>; with a token it also carries the token's scopes and its owner's standing instructions. Tokens are issued at <a href="/team/tokens">/team/tokens</a>.</p>
+<div class="prose brief">{{ brief|md }}</div>
+{% endblock %}

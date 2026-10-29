@@ -6,13 +6,16 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
 from ..authz import require
+from ..brief import build_agent_brief
 from ..services import proposals as psvc
-from ..services import thread
+from ..services import thread, users
 from ..services import tickets as tsvc
+from ..ui import site_for, site_url
 from .deps import Ctx, Db, Who
 
 router = APIRouter(prefix="/v1", tags=["agent"])
@@ -126,16 +129,44 @@ async def add_patch(ctx: Ctx, db: Db, who: Who, tid: str, body: PatchIn):
     return {"ticket": t.id, "id": pr.id, "repo": pr.repo, "ref": pr.ref, "url": pr.url}
 
 
+async def _brief(ctx: Ctx, db: Db, who: Who, request: Request) -> str:
+    """The general brief; with a token, its own section (scopes, owner, standing instructions) on top."""
+    p = who.principal
+    owner = ""
+    if p.token:
+        owner = (await users.token_owners(db)).get(p.token.id, "")
+    return build_agent_brief(
+        ctx.config, site_url(ctx, site_for(request)), ctx.node.network_id, token=p.token, owner=owner
+    )
+
+
+@router.get("/agent/brief.md", response_class=PlainTextResponse)
+async def agent_brief_md(ctx: Ctx, db: Db, who: Who, request: Request):
+    return PlainTextResponse(await _brief(ctx, db, who, request), media_type="text/markdown; charset=utf-8")
+
+
+@router.get("/agent/brief")
+async def agent_brief(ctx: Ctx, db: Db, who: Who, request: Request):
+    p = who.principal
+    return {
+        "brief": await _brief(ctx, db, who, request),
+        "format": "markdown",
+        "config_hashes": ctx.config.hashes,
+        "instructions": p.token.instructions if p.token else "",
+    }
+
+
 @router.get("/me")
 async def me(who: Who):
     p = who.principal
-    out: dict[str, Any] = {"kind": p.kind, "actor": p.actor, "name": p.name}
+    out: dict[str, Any] = {"kind": p.kind, "actor": p.actor, "name": p.name, "brief": "/v1/agent/brief.md"}
     if p.token:
         out["token"] = {
             "id": p.token.id,
             "model_id": p.token.model_id,
             "label": p.token.label,
             "scopes": p.token.scopes,
+            "instructions": p.token.instructions,
             "expires_at": thread.iso(p.token.expires_at),
         }
     if p.user:

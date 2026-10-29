@@ -310,5 +310,7 @@ code.mono { font-family:var(--mono); font-size:13px; word-break:break-all; }
 a.card.topic { display:block; color:inherit; transition:background .2s ease; }
 a.card.topic:hover { background:var(--brand-wash); border-color:color-mix(in srgb, var(--brand) 35%, transparent); text-decoration:none; }
 a.card.topic h3 { color:var(--fg); } a.card.topic p { font-size:14px; }
-td .name[data-rename] { cursor:text; border-bottom:1px dashed var(--stroke-strong); }
-td .name[data-rename]:hover { color:var(--brand-text); border-bottom-color:var(--brand); }
+td .name[data-rename], td .name[data-instruct] { cursor:text; border-bottom:1px dashed var(--stroke-strong); }
+td .name[data-rename]:hover, td .name[data-instruct]:hover { color:var(--brand-text); border-bottom-color:var(--brand); }
+td.instr { max-width:260px; font-size:13px; color:var(--fg-2); }
+.prose.brief table { font-size:14px; } .prose.brief blockquote { font-size:16.5px; color:var(--fg-2); }

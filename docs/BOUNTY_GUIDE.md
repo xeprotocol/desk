@@ -100,7 +100,9 @@ On a `patched` or `disclosed` ticket with an assessed tier, set the amount in XE
 
 Agents do the reading. A new ticket arrives, an agent reads it against the tree, and within minutes there's a note with its reading and a set of proposals: tier, verdict, duplicate, gate, effort, the internal ticket if one already covers it, any community PR that looks relevant, and a reply draft. The reviewer's job becomes adopt-or-reject, in bulk, from the list view filtered to **pending**.
 
-**Issuing a token.** `/team/tokens`. A token is bound to you (its owner), a model id, a label, a set of scopes and a lifetime. Everything it writes is recorded against both you and the model. Scopes:
+**Where an agent gets its direction.** The desk serves a brief at `/v1/agent/brief.md` (readable at `/agent`): the role, the loop below, every vocabulary it may send (tier, verdict, gate, effort, area, status) with the key the desk accepts and the label a person sees, what a good note contains, how to take a rejection, and the rules that don't bend. It is built from `config/desk.yaml`, so it is always what the desk actually enforces. Point your agent at it first; the manifest and `/llms.txt` both link it. On top of that, each token carries **standing instructions** from its owner ("only p2p-sync tickets; never propose status"), set when the token is issued or later from `/team/tokens`, returned by `GET /v1/me` and folded into the brief when the agent reads it with its token. The brief is the same for everyone; the instructions are yours.
+
+**Issuing a token.** `/team/tokens`. A token is bound to you (its owner), a model id, a label, a set of scopes, a lifetime and optional standing instructions. Everything it writes is recorded against both you and the model. Scopes:
 
 - `read:public`, `read:private`: what it may read. Give `read:private` only to a model and runner you'd show the report to.
 - `write:notes`: internal notes.
@@ -111,12 +113,13 @@ There is no scope for replies, status, tier or awards, and there never will be. 
 
 **The loop an agent runs** (`Authorization: Bearer <token>` on `https://bounty.xe.network/v1/...`; the full surface is at `GET /v1` and `/llms.txt`):
 
-1. `GET /v1/tickets?status=open&sort=severity` (or `status=new` for the fresh ones).
-2. For each: `GET /v1/tickets/{id}` and `/thread`, `/patch-refs`, `/agent/tickets/{id}/notes` and `/proposals` to see what's already been said.
-3. Read the code. Reproduce if it can.
-4. `POST /v1/agent/tickets/{id}/notes` with its reading: what the report claims, what the code does, whether it reproduces, what it would take to fix.
-5. `POST /v1/agent/tickets/{id}/proposals/bulk` with up to twelve proposals, each with a `reason`. A repeat proposal on the same field from the same token supersedes the earlier one, so it can revise.
-6. `POST /v1/agent/tickets/{id}/patch-refs` if it finds a PR that addresses it.
+1. `GET /v1/me` for its scopes and your standing instructions; `GET /v1/agent/brief.md` for the brief.
+2. `GET /v1/tickets?status=open&sort=severity` (or `status=new` for the fresh ones).
+3. For each: `GET /v1/tickets/{id}` and `/thread`, `/patch-refs`, `/notes` and `/proposals` to see what's already been said.
+4. Read the code. Reproduce if it can.
+5. `POST /v1/tickets/{id}/notes` with its reading: what the report claims, what the code does, whether it reproduces, what it would take to fix.
+6. `POST /v1/tickets/{id}/proposals/bulk` with up to twelve proposals, each with a `reason`. A repeat proposal on the same field from the same token supersedes the earlier one, so it can revise.
+7. `POST /v1/tickets/{id}/patch-refs` if it finds a PR that addresses it.
 
 **Adopting.** On the ticket page each pending proposal has adopt and reject. On the list, filter **pending** and work down; `/v1/team/proposals/bulk` does many at once. Adopting a `status` proposal applies the status along the normal rules; adopting a `reply_draft` puts the text in the reply editor for you to edit and send, it never sends itself. Reject with a word of reason: the agent's owner sees the rejections and that's how the prompt improves.
 
@@ -153,6 +156,7 @@ An issue closed on GitHub by someone before the desk ruled is left open on the d
 | Users and roles | `/team/users` (admin) |
 | Payout list | `/v1/team/payouts.csv` (treasurer) |
 | Public API and manifest | `GET /v1`, `/llms.txt`, `/index.md` |
+| Agent brief | `/agent`, `/v1/agent/brief.md` |
 | Event log | `/log`, `/live`, `GET /v1/log/verify` |
 | Support door | `https://support.xe.network/` and the Discord bot; `/bounty` in a thread converts a question into a report |
 | Deployment | [`DEPLOY.md`](DEPLOY.md) |

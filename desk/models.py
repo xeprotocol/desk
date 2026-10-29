@@ -220,6 +220,8 @@ class AgentToken(Base):
     model_id: Mapped[str] = mapped_column(String(128), nullable=False)
     label: Mapped[str] = mapped_column(String(128), nullable=False, default="")
     scopes: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)  # subset of AGENT_SCOPES
+    # the owner's standing instructions to this agent, returned by GET /v1/me and folded into its brief
+    instructions: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -172,11 +172,18 @@
         const r = await api("POST", "/v1/team/tokens", {
           model_id: fd.get("model_id"), label: fd.get("label") || "", days: parseInt(fd.get("days") || "90", 10),
           scopes: fd.getAll("scopes"), owner_id: fd.get("owner_id") ? parseInt(fd.get("owner_id"), 10) : null,
+          instructions: fd.get("instructions") || "",
         });
         say(msg, `Token (shown once): ${r.token}`, true);
         msg.style.userSelect = "all";
       } catch (err) { say(msg, err.message, false); }
     });
+    $$("[data-instruct]").forEach(el => el.addEventListener("click", async () => {
+      const cur = el.getAttribute("title") || "";
+      const next = prompt("Standing instructions for this agent (blank to clear):", cur);
+      if (next === null || next.trim() === cur.trim()) return;
+      try { await api("PATCH", `/v1/team/tokens/${el.dataset.instruct}`, { instructions: next.trim() }); reload(); } catch (e) { say($("#token-msg"), e.message, false); }
+    }));
     $$("[data-revoke]").forEach(b => b.addEventListener("click", async () => {
       if (!confirm("Revoke this token? Calls with it stop at once.")) return;
       try { await api("DELETE", `/v1/team/tokens/${b.dataset.revoke}`); reload(); } catch (e) { say($("#token-msg"), e.message, false); }

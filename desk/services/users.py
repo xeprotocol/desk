@@ -99,7 +99,8 @@ async def passkeys_for(db: AsyncSession, u: User) -> list[Passkey]:
 async def token_owners(db: AsyncSession) -> dict[int, str]:
     """Token id -> the name of the human it belongs to. Resolved at read time, so it covers every note and
     proposal ever written and follows renames."""
-    rows = await db.execute(select(AgentToken.id, User.name, User.email).join(User, User.id == AgentToken.owner_id))
+    q = select(AgentToken.id, User.name, User.email).join(User, User.id == AgentToken.owner_id)
+    rows = await db.execute(q)
     return {tid: (name or email) for tid, name, email in rows.all()}
 
 
@@ -123,6 +124,7 @@ async def issue(
     label: str,
     scopes: list[str],
     days: int,
+    instructions: str = "",
 ) -> tuple[AgentToken, str]:
     if p.user is None:
         raise HTTPException(403, "tokens are issued by a signed-in person")
@@ -130,7 +132,7 @@ async def issue(
         raise HTTPException(403, "only an admin issues a token for someone else")
     if "read:private" in scopes and not p.roles:
         raise HTTPException(403, "read:private can only be granted by a team member")
-    t, raw = await auth.issue_token(db, owner, model_id, label, scopes, days)
+    t, raw = await auth.issue_token(db, owner, model_id, label, scopes, days, instructions)
     await ctx.events.append(
         db,
         "token.issued",
@@ -155,6 +157,16 @@ async def revoke(ctx: Context, db: AsyncSession, p: Principal, t: AgentToken) ->
         await ctx.events.append(db, "token.revoked", p.actor, {"token": t.id, "owner": t.owner_id})
 
 
+async def set_instructions(ctx: Context, db: AsyncSession, p: Principal, t: AgentToken, text: str) -> None:
+    """The owner (or an admin) changes what their agent is told. Logged; the next GET /v1/me carries it."""
+    if p.user is None or (t.owner_id != p.user.id and "admin" not in p.roles):
+        raise HTTPException(403, "only the token's owner or an admin sets its instructions")
+    t.instructions = (text or "").strip()[:4000]
+    await ctx.events.append(
+        db, "token.instructed", p.actor, {"token": t.id, "chars": len(t.instructions)}, public=False
+    )
+
+
 def token_dict(t: AgentToken) -> dict:
     return {
         "id": t.id,
@@ -163,6 +175,7 @@ def token_dict(t: AgentToken) -> dict:
         "model_id": t.model_id,
         "label": t.label,
         "scopes": t.scopes,
+        "instructions": t.instructions,
         "created_at": t.created_at.isoformat() if t.created_at else None,
         "expires_at": t.expires_at.isoformat(),
         "revoked_at": t.revoked_at.isoformat() if t.revoked_at else None,

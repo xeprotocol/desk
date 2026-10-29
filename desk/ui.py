@@ -17,6 +17,7 @@ from sqlalchemy import select
 from . import __version__
 from .auth import resolve
 from .authz import ANON, Principal, can
+from .brief import build_agent_brief
 from .context import get_context
 from .db import session
 from .log import EventLog, event_to_dict
@@ -302,6 +303,17 @@ async def ticket_page(request: Request, tid: str):
 
 
 # ---- public pages -----------------------------------------------------------------------------------
+
+
+@router.get("/agent", response_class=HTMLResponse)
+async def agent_page(request: Request):
+    """The agent brief as a page, for the person writing the prompt. The authored markdown is at
+    /v1/agent/brief.md; this is the same text rendered."""
+    c = get_context()
+    async with session() as db:
+        p, csrf = await principal(db, request)
+    text = build_agent_brief(c.config, site_url(c, site_for(request)), c.node.network_id)
+    return render(request, "agent.html", {"p": p, "csrf": csrf, "brief": text})
 
 
 @router.get("/scope", response_class=HTMLResponse)
