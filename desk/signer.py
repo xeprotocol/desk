@@ -96,7 +96,11 @@ class Signer:
         path: Path, passphrase: str, names: tuple[str, ...] = DEFAULT_KEYS
     ) -> dict[str, KeyInfo]:
         if path.exists():
-            raise SignerError(f"{path} already exists; refusing to overwrite")
+            raise SignerError(
+                f"{path} already exists; refusing to overwrite. Check it opens with `desk keys show`. "
+                "If it must be replaced (only before anything is sealed), delete the file on the host "
+                "(./secrets/signer.json) and run again."
+            )
         if len(passphrase) < 12:
             raise SignerError("passphrase must be at least 12 characters")
         keys = {n: KeyPair.generate() for n in names}
