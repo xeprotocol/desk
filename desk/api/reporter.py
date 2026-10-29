@@ -247,24 +247,36 @@ class EmailIn(BaseModel):
     next: str | None = None
 
 
+async def _email_link(ctx: Ctx, db, who: Who, email: str, next_path: str) -> bool:
+    """Create a one-time link and mail it. Signed in, the link adds the address to that account and the
+    mail says so; otherwise it is a sign-in. Commits. Returns whether mail went out."""
+    existing = await rsvc.by_email(db, email)
+    link_to = who.reporter.id if who.reporter else (existing.id if existing else None)
+    raw = await auth.create_reporter_link(db, email, link_to, next_path)
+    await db.commit()
+    host = ctx.settings.hosts["bounty"]
+    url = f"{ctx.settings.scheme}://{host}/v1/reporter/auth/email/{raw}"
+    name = ctx.config.copy_public.get("bounty_name", "the XE desk")
+    if who.reporter:
+        subject = f"Confirm this address for {name}"
+        text = (
+            f"Open this link within fifteen minutes to confirm the address. The desk will then tell you "
+            f"here when the team replies to your reports:\n\n{url}\n\n"
+            "If you did not ask for it, ignore it; nothing is linked."
+        )
+    else:
+        subject = f"Sign in to {name}"
+        text = (
+            f"Open this link within fifteen minutes to sign in:\n\n{url}\n\nIf you did not ask for it, ignore it."
+        )
+    return await auth.send_mail(ctx.settings, email, subject, text)
+
+
 @router.post("/auth/email")
 async def email_start(ctx: Ctx, db: Db, who: Who, request: Request, body: EmailIn):
     """Send a one-time link. The response is the same whether or not the address is known."""
     _limit(request)
-    email = rsvc.clean_email(body.email)
-    existing = await rsvc.by_email(db, email)
-    link_to = who.reporter.id if who.reporter else (existing.id if existing else None)
-    raw = await auth.create_reporter_link(db, email, link_to, _safe_next(ctx, body.next))
-    await db.commit()
-    host = ctx.settings.hosts["bounty"]
-    url = f"{ctx.settings.scheme}://{host}/v1/reporter/auth/email/{raw}"
-    sent = await auth.send_mail(
-        ctx.settings,
-        email,
-        f"Sign in to {ctx.config.copy_public.get('bounty_name', 'the XE desk')}",
-        f"Open this link within fifteen minutes to sign in:\n\n{url}\n\n"
-        "If you did not ask for it, ignore it.",
-    )
+    sent = await _email_link(ctx, db, who, rsvc.clean_email(body.email), _safe_next(ctx, body.next))
     note = None if sent else "mail is not configured on this desk; ask the team"
     return {"ok": True, "sent": sent, "note": note}
 
@@ -347,9 +359,12 @@ async def file_ticket(
     area: str | None = Form(None),
     claimed_tier: str | None = Form(None),
     private: bool = Form(False),
+    notify_email: str | None = Form(None),
     files: list[UploadFile] = File(default=[]),
 ):
-    """Multipart, so attachments ride along. Returns the ticket id and URL; the page redirects there."""
+    """Multipart, so attachments ride along. Returns the ticket id and URL; the page redirects there.
+    `notify_email`, on an account with no email yet, gets a confirmation link; once confirmed, replies
+    are announced there."""
     r = _reporter(who, request)
     _limit(request, _filings, FILE_LIMIT, FILE_WINDOW, "reports")
     f = rsvc.Filing(
@@ -363,7 +378,14 @@ async def file_ticket(
     )
     t = await rsvc.file_ticket(ctx, db, r, f)
     await db.commit()
-    return {"ticket": t.id, "url": tsvc.ticket_url(ctx, t), "visibility": t.visibility}
+    url = tsvc.ticket_url(ctx, t)
+    notify = None
+    if notify_email and notify_email.strip() and not r.email:
+        try:
+            notify = await _email_link(ctx, db, who, rsvc.clean_email(notify_email), _safe_next(ctx, url))
+        except HTTPException:
+            notify = False  # a bad address never costs the filing
+    return {"ticket": t.id, "url": url, "visibility": t.visibility, "notify_sent": notify}
 
 
 class TextIn(BaseModel):

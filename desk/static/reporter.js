@@ -50,6 +50,8 @@
   // ---- XE key: sign in / link ---------------------------------------------------------------
   const toggle = $("#xe-link-toggle");
   if (toggle) toggle.addEventListener("click", () => { const b = $("#xe-box"); b.style.display = b.style.display === "none" ? "" : "none"; });
+  const have = $("#xe-have");
+  if (have) have.addEventListener("click", () => { const b = $("#xe-have-box"); b.style.display = b.style.display === "none" ? "" : "none"; if (b.style.display === "") $("#xe-seed").focus(); });
 
   async function xeLogin(seedHex) {
     const S = window.XeSigner;
@@ -132,8 +134,9 @@
     btn.disabled = true; say("#report-msg", "Filing…", true);
     try {
       const d = await api("POST", "/v1/reporter/tickets", fd);
-      say("#report-msg", "Filed as " + d.ticket + ".", true);
-      location.assign(d.url || ("/t/" + d.ticket));
+      const mailed = d.notify_sent === true;
+      say("#report-msg", "Filed as " + d.ticket + "." + (mailed ? " A link to confirm your email is on its way." : ""), true);
+      setTimeout(() => location.assign(d.url || ("/t/" + d.ticket)), mailed ? 1800 : 0);
     } catch (err) { say("#report-msg", err.message, false); btn.disabled = false; }
   });
 

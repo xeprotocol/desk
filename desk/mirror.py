@@ -246,7 +246,7 @@ def build_llms_txt(
             how,
             "",
             "## Start here",
-            link("/report", "Report a bug", "sign in (GitHub, email link, or XE key) and file; private by default"),
+            link("/report", "Report a bug", "sign in (GitHub, or a key of your own) and file; private by default"),
             link("/index.md", "Open tickets", "every public report, most severe first"),
             link(
                 "/scope.md",

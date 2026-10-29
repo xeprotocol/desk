@@ -27,7 +27,7 @@ from desk.models import AgentToken, Note, Proposal, Reply, Ticket, User
 from desk.services import proposals as psvc
 from desk.services import channels
 from desk.services import reporters as rsvc
-from desk.services import sync, thread, triage, users
+from desk.services import notify, sync, thread, triage, users
 from desk.services import tickets as tsvc
 from desk.services.tickets import utcnow
 from desk.settings import Settings
@@ -515,6 +515,45 @@ async def test_desk_reply_is_queued_for_the_bot_not_the_worker(ctx, db):
     assert r.mirror == "sent" and r.mirror_ref == "https://discord.com/x"
     assert [x.source_ref for x in await thread.messages_for(db, t)][-1] == "d9"
     assert await channels.queued_replies(db, "discord") == []
+
+
+async def test_reporter_with_an_email_is_told_of_team_replies(ctx, db, monkeypatch):
+    sent: list[tuple[str, str, str]] = []
+
+    async def fake_mail(settings, to, subject, body):
+        sent.append((to, subject, body))
+        return True
+
+    monkeypatch.setattr(auth, "send_mail", fake_mail)
+    ctx.settings.smtp_host = "mail.test"
+    team = await _team(ctx, db)
+    words = "What I did, what happened, and what I expected instead, in enough words to pass the check."
+
+    def filing(title, private):
+        return rsvc.Filing(kind="bounty", title=title, body=words, private=private)
+
+    # a key-only reporter: nobody to tell
+    kp = KeyPair.generate()
+    v = await verify_signed(db, _signed(kp, DOMAIN_LOGIN, {"host": "bounty.test"}), DOMAIN_LOGIN)
+    silent = await rsvc.from_xe(ctx, db, v, link_to=None)
+    t1 = await rsvc.file_ticket(ctx, db, silent, filing("Quiet report", True))
+    assert await notify.reply_to_reporter(ctx, db, t1, team.name, "Looking.") is False
+    # an email on the account: a private report gets the fact and the link, not the text
+    r = await rsvc.from_email(ctx, db, "alice@example.org", link_to=None)
+    t2 = await rsvc.file_ticket(ctx, db, r, filing("Private report", True))
+    assert await notify.reply_to_reporter(ctx, db, t2, team.name, "Confirmed, fixing.") is True
+    to, subject, body = sent[-1]
+    assert to == "alice@example.org" and t2.id in subject and "Confirmed" not in body and t2.id in body
+    # a public one carries the text
+    t3 = await rsvc.file_ticket(ctx, db, r, filing("Public typo", False))
+    assert await notify.reply_to_reporter(ctx, db, t3, team.name, "Fixed in #27.") is True
+    assert "Fixed in #27." in sent[-1][2]
+    # a Discord-sourced question is told in its thread by the bot, not by mail
+    t4 = await channels.open_from_channel(ctx, db, _post())
+    assert await notify.reply_to_reporter(ctx, db, t4, team.name, "No date yet.") is False
+    # mail off: nothing goes out, nothing breaks
+    ctx.settings.smtp_host = ""
+    assert await notify.reply_to_reporter(ctx, db, t3, team.name, "Again.") is False
 
 
 async def test_close_convert_rename_from_the_channel_and_state_push(ctx, db):

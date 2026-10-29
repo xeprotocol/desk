@@ -31,7 +31,7 @@ support:
   crosslink: >-
     Found a way to break the network, steal funds or forge a transaction? That is a security bug, and
     it goes to the bounty at {bounty_url}, in private. Do not post it here.
-  ask: Sign in with GitHub, an email link or your XE key; it takes a minute.
+  ask: Sign in with Discord or an email link; it takes a minute.
   empty: No questions under this heading yet.
   safety_lead: Nobody from XE will ever ask for your seed, private key or password.
   safety: >-
@@ -117,8 +117,12 @@ report:
     No payout address yet. An accepted report cannot be paid until one is bound, and binding means
     proving you hold the key: a signature from that key, made here in your browser.
   payout_how: >-
-    Paste the seed of the address you want paid, or make a new key here. The seed stays in this tab and
-    is cleared the moment the signature is made; only the address and the signature reach the desk.
+    Make a key here, or paste the seed of a key made for this. The seed stays in this tab and is cleared
+    the moment the signature is made; only the address and the signature reach the desk.
+  notify_label: Email for replies
+  notify_note: >-
+    Private reports are answered here, where only you can see them. Leave an email and the desk tells
+    you when the team replies. A link confirms the address first; it is never shown publicly.
 
 notices:
   private_ticket: >-

@@ -4,40 +4,52 @@
 <div class="login" data-next="{{ next }}">
 <div class="tag"><span>{{ "Support" if site == "support" else "Reporters" }}</span></div>
 <h1>Sign in.</h1>
-<p class="sub">{% if site == "support" %}To ask a question and follow the answer.{% else %}To file a report, follow it, and be paid for it.{% endif %} Three ways, no passwords. One account can hold all three; add the others later on your account page.</p>
+{% if site == "support" %}
+<p class="sub">To ask a question and follow the answer. Two ways, no passwords. Asked in the XE Discord already? Sign in with Discord and the thread is here under your questions.</p>
+
+<div class="grid">
+<div class="card">
+  <h3>Discord</h3>
+  {% if discord_sign_in %}
+  <p>The XE community is on Discord, and so is the support bot. The same account, the same threads.</p>
+  <a class="button" href="/v1/reporter/auth/discord?next={{ next|urlencode }}">Continue with Discord</a>
+  {% else %}
+  <p class="k">Not set up on this desk yet.</p>
+  {% endif %}
+</div>
+<div class="card">
+  <h3>Email</h3>
+  <p>Not on Discord? A one-time link, good for fifteen minutes. Answers to your questions are sent to the same address.</p>
+  <div class="row"><input type="email" id="email" placeholder="you@example.org" autocomplete="email" style="max-width:280px"><button class="mini" type="button" id="email-start">Send the link</button></div>
+  <div class="msg" id="email-msg" style="display:none"></div>
+  {% if not mail_sign_in %}<p class="k">Mail is not configured on this desk; the link is logged for the team.</p>{% endif %}
+</div>
+</div>
+<p class="notice" style="margin-top:24px"><b>{{ copy.report.ask_safety }}</b> The desk never asks for your key or recovery phrase, not to sign in and not to answer a question.</p>
+{% else %}
+<p class="sub">To file a report, follow it, and be paid for it. Two ways, no passwords. One account can hold both; add the other later on your account page.</p>
 
 <div class="grid">
 <div class="card">
   <h3>GitHub</h3>
   {% if github_sign_in %}
-  <p>{% if site == "bounty" %}If you have filed issues on <code>xeprotocol/xe</code> before, this picks them up under your reports.{% else %}The quickest way if you have an account.{% endif %}</p>
+  <p>If you have filed issues on <code>xeprotocol/xe</code> before, this picks them up under your reports.</p>
   <a class="button" href="/v1/reporter/auth/github?next={{ next|urlencode }}">Continue with GitHub</a>
   {% else %}
   <p class="k">Not set up on this desk yet.</p>
   {% endif %}
 </div>
-{% if discord_sign_in %}
 <div class="card">
-  <h3>Discord</h3>
-  <p>{% if site == "support" %}Asked in the XE Discord already? Sign in with the same account and the thread is here under your questions.{% else %}If you are in the XE Discord.{% endif %}</p>
-  <a class="button" href="/v1/reporter/auth/discord?next={{ next|urlencode }}">Continue with Discord</a>
-</div>
-{% endif %}
-<div class="card">
-  <h3>Email</h3>
-  <p>A one-time link, good for fifteen minutes.</p>
-  <div class="row"><input type="email" id="email" placeholder="you@example.org" autocomplete="email" style="max-width:280px"><button class="mini" type="button" id="email-start">Send the link</button></div>
-  <div class="msg" id="email-msg" style="display:none"></div>
-  {% if not mail_sign_in %}<p class="k">Mail is not configured on this desk; the link is logged for the team.</p>{% endif %}
-</div>
-<div class="card">
-  <h3>XE key</h3>
-  <p>Sign a challenge with your key in the browser. The key never leaves this tab{% if site == "bounty" %}; the address it derives to is also where an award would go once you bind it{% endif %}.</p>
+  <h3>A key of your own</h3>
+  <p>No account anywhere: make a key for the desk, sign a challenge with it in this tab, and the address it derives to is you. The same address can take the award. Use a key made for this, never one that holds funds; the desk only ever sees the signature.</p>
   <div id="xe-box">
-    <input type="password" id="xe-seed" placeholder="64-hex seed" autocomplete="off" style="max-width:420px">
-    <div class="row" style="margin-top:8px">
-      <button class="mini" type="button" id="xe-login">Sign in with the key</button>
-      <button class="ghost mini" type="button" id="xe-generate">I don't have one: make a key</button>
+    <div class="row">
+      <button class="mini" type="button" id="xe-generate">Make a key</button>
+      <button class="ghost mini" type="button" id="xe-have">I have a desk key</button>
+    </div>
+    <div id="xe-have-box" style="display:none; margin-top:12px">
+      <input type="password" id="xe-seed" placeholder="64-hex seed" autocomplete="off" style="max-width:420px">
+      <div class="row" style="margin-top:8px"><button class="mini" type="button" id="xe-login">Sign in with the key</button></div>
     </div>
     <div id="xe-new" style="display:none; margin-top:12px">
       <p class="k">Your new seed. Write it down now; it is shown once and the desk never sees it. Anyone with the seed controls the address.</p>
@@ -47,9 +59,12 @@
     </div>
     <div class="msg" id="xe-msg" style="display:none"></div>
   </div>
+  <p class="k" style="margin-top:12px">Connecting the XE wallet itself, as on the governance site, is next; the key stays in the wallet and the desk asks it to sign.</p>
 </div>
 </div>
-<p class="k" style="margin-top:24px">Signing in logs an entry (your account id, the method, the address you came from) in the desk's private log. Nothing about you is shown publicly except the name on your reports.</p>
+<p class="k" style="margin-top:24px">Replies to a private report are only visible here. Add an email on your account page, or when you file, and the desk tells you when the team answers.</p>
+{% endif %}
+<p class="k" style="margin-top:12px">Signing in logs an entry (your account id, the method, the address you came from) in the desk's private log. Nothing about you is shown publicly except the name on your reports.</p>
 </div>
 {% endblock %}
 {% block scripts %}<script src="/static/signer.js"></script><script src="/static/reporter.js"></script>{% endblock %}

@@ -14,7 +14,7 @@ from ..auth import check_csrf
 from ..authz import can, require, require_field
 from ..services import proposals as psvc
 from ..services import reporters as rsvc
-from ..services import thread, users
+from ..services import notify, thread, users
 from ..services import tickets as tsvc
 from .deps import Ctx, Db, Who
 
@@ -143,7 +143,9 @@ async def reply(ctx: Ctx, db: Db, who: Who, request: Request, tid: str, body: Re
     require(who.principal, "reply", t)
     r = await thread.add_reply(ctx, db, who.principal, t, body.body)
     await db.commit()
-    return {"id": r.id, "ticket": t.id, "mirror": r.mirror}
+    # once it is on record, the reporter is told, where there is an address to tell
+    told = await notify.reply_to_reporter(ctx, db, t, who.principal.name, body.body)
+    return {"id": r.id, "ticket": t.id, "mirror": r.mirror, "mailed": told}
 
 
 @router.get("/tickets/{tid}/reply-template/{name}")

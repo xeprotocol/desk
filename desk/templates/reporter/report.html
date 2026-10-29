@@ -39,6 +39,11 @@
     <p class="k" id="private-note">{{ rc.private_note }}</p>
     {% if not vault_ok %}<p class="notice">{{ rc.no_vault }}</p>{% endif %}
   </div>
+  {% if not me.email %}
+  <label for="notify_email" style="margin-top:16px">{{ rc.notify_label }} <span class="k">(optional)</span></label>
+  <input type="email" id="notify_email" name="notify_email" autocomplete="email" placeholder="you@example.org" style="max-width:360px">
+  <p class="k">{{ rc.notify_note }}</p>
+  {% endif %}
   {% endif %}
 
   <label for="files" style="margin-top:16px">{{ "Screenshots" if kind == "support" else "Attachments" }} <span class="k">(up to {{ max_files }}, {{ max_mb }} MB each)</span></label>

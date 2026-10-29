@@ -3,19 +3,26 @@
 {% block content %}
 <div class="tag"><span>Account</span></div>
 <h1>{{ me.display_name or me.github_login or me.email or "Reporter " ~ me.id }}</h1>
-<p class="sub">{{ n_tickets }} {{ "ticket" if n_tickets == 1 else "tickets" }} under this account. The ways you can sign in, and where an award would be paid.</p>
+{% set bounty = site == "bounty" %}
+{% set has_discord = me.platform_ids.get("discord") %}
+<p class="sub">{{ n_tickets }} {{ ("report" if n_tickets == 1 else "reports") if bounty else ("question" if n_tickets == 1 else "questions") }} under this account. The ways you can sign in, where replies reach you{% if bounty %}, and where an award would be paid{% endif %}.</p>
 
 <div class="grid">
 <div class="card">
   <h3>Ways in</h3>
   <table class="toks">
+    {% if bounty or me.github_login %}
     <tr><td>GitHub</td><td class="k">{% if me.github_login %}@{{ me.github_login }}{% else %}not linked{% endif %}</td><td class="right">{% if not me.github_login and github_sign_in %}<a class="mini button" href="/v1/reporter/auth/github?next=/account">Link</a>{% endif %}</td></tr>
-    {% if discord_sign_in or me.platform_ids.get("discord") %}
-    <tr><td>Discord</td><td class="k">{% if me.platform_ids.get("discord") %}{{ me.platform_ids.get("discord_handle") or me.platform_ids.get("discord") }}{% else %}not linked{% endif %}</td><td class="right">{% if not me.platform_ids.get("discord") and discord_sign_in %}<a class="mini button" href="/v1/reporter/auth/discord?next=/account">Link</a>{% endif %}</td></tr>
     {% endif %}
-    <tr><td>Email</td><td class="k">{{ me.email or "not linked" }}</td><td class="right">{% if not me.email %}<div class="row"><input type="email" id="email" placeholder="you@example.org" style="max-width:200px"><button class="mini" type="button" id="email-start">Link</button></div>{% endif %}</td></tr>
-    <tr><td>XE key</td><td class="k">{% if me.xe_login_addresses %}{% for a in me.xe_login_addresses %}<code class="mono">{{ a }}</code><br>{% endfor %}{% else %}none{% endif %}</td><td class="right"><button class="ghost mini" type="button" id="xe-link-toggle">Add a key</button></td></tr>
+    {% if (not bounty and discord_sign_in) or has_discord %}
+    <tr><td>Discord</td><td class="k">{% if has_discord %}{{ me.platform_ids.get("discord_handle") or has_discord }}{% else %}not linked{% endif %}</td><td class="right">{% if not has_discord and discord_sign_in %}<a class="mini button" href="/v1/reporter/auth/discord?next=/account">Link</a>{% endif %}</td></tr>
+    {% endif %}
+    <tr><td>Email{% if bounty %} <span class="k">for replies</span>{% endif %}</td><td class="k">{{ me.email or "none" }}</td><td class="right">{% if not me.email %}<div class="row"><input type="email" id="email" placeholder="you@example.org" style="max-width:200px"><button class="mini" type="button" id="email-start">Add</button></div>{% endif %}</td></tr>
+    {% if bounty or me.xe_login_addresses %}
+    <tr><td>Desk key</td><td class="k">{% if me.xe_login_addresses %}{% for a in me.xe_login_addresses %}<code class="mono">{{ a }}</code><br>{% endfor %}{% else %}none{% endif %}</td><td class="right"><button class="ghost mini" type="button" id="xe-link-toggle">Add a key</button></td></tr>
+    {% endif %}
   </table>
+  {% if not me.email %}<p class="k" style="margin-top:8px">{% if bounty %}The team's replies to a private report are only visible here. With an email on the account, you are told when one lands; a link confirms the address first.{% else %}Add an email and the answer to your question reaches you there as well; a link confirms the address first.{% endif %}</p>{% endif %}
   <div id="xe-box" style="display:none; margin-top:12px">
     <input type="password" id="xe-seed" placeholder="64-hex seed" autocomplete="off">
     <div class="row" style="margin-top:8px"><button class="mini" type="button" id="xe-login">Sign in with it</button><button class="ghost mini" type="button" id="xe-generate">Make a new key</button></div>
@@ -41,6 +48,7 @@
   <p>{{ copy.report.payout_none }}</p>
   {% endif %}
   <div id="payout-box" style="margin-top:12px">
+    <p class="k">Proof is a signature from the address's key. Until the XE wallet can sign for the desk, that means a desk key: make one here and keep the seed, or paste the seed of a key made for this purpose. Never the key of a wallet that holds funds.</p>
     <input type="password" id="payout-seed" placeholder="seed of the address to be paid to" autocomplete="off">
     <div class="row" style="margin-top:8px"><button class="mini" type="button" id="payout-bind">{{ "Replace the address" if me.xe_address else "Bind this address" }}</button><button class="ghost mini" type="button" id="payout-generate">Make a new key</button></div>
     <div id="payout-new" style="display:none; margin-top:12px">
