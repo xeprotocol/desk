@@ -1,7 +1,7 @@
 """The triage doc, in and out.
 
 `parse_triage` reads docs/BOUNTY_TRIAGE.md into rows with no database involved, so it is testable
-against the real file. `import_rows` applies them: facts as facts (the doc is the CTO's ruling), the
+against the real file. `import_rows` applies them: facts as facts (the doc is the team's ruling), the
 italic note as an internal note by the triage agent token, PRs as patch refs, the Internal column as
 status per brief §10. `export_markdown` writes the same tables back from the database.
 """
@@ -420,7 +420,7 @@ def _note_text(r: Row) -> str:
     if r.note:
         parts.append(r.note)
     if r.first_reading:
-        parts.append(f"First reading → CTO: {r.first_reading}")
+        parts.append(f"First reading → ruling: {r.first_reading}")
     if r.gate_note:
         parts.append(f"Gate note: {r.gate_note}.")
     if r.agent_effort and r.agent_effort != "—":

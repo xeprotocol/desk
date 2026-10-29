@@ -217,7 +217,7 @@ async def poll(ctx: Context, db: AsyncSession, client: gh.GitHub) -> list[dict]:
 
 # ---- the engineering tracker (read-only) ------------------------------------------------------------
 #
-# The CTO's tickets live in a private repo and name the public reports they cover: "security: bounty
+# The engineering tickets live in a private repo and name the public reports they cover: "security: bounty
 # bundle xe#8". The desk never writes there. It reads the tag to fill `internal_ref`, and reads the
 # issue's state to move the public ticket: open → accepted; closed as completed → patched, which puts
 # the ticket in the outbox for a human to tell the reporter; closed as not planned → a note, since the

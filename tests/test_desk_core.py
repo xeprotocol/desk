@@ -280,7 +280,7 @@ ALIASES = {"xe": "xeprotocol/xe", "dao": "xeprotocol/dao", "sdk": "xeprotocol/sd
 
 
 def test_public_tags_in_internal_tickets():
-    # the CTO's convention in xeprotocol/core: "security: bounty bundle xe#8" → xeprotocol/xe issue 8
+    # the convention in xeprotocol/core: "security: bounty bundle xe#8" → xeprotocol/xe issue 8
     assert gh.public_tags("security: bounty bundle xe#8", ALIASES) == [("xeprotocol/xe", 8)]
     assert gh.public_tags("sync nil-block panic xe#8, xe#68 and XE#4", ALIASES) == [
         ("xeprotocol/xe", 8),

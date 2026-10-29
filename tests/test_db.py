@@ -86,7 +86,7 @@ def ctx():
 
 
 async def _team(ctx, db, roles=("reviewer", "tier", "treasurer", "admin")):
-    u = await users.create_user(ctx, db, "test", "cto@xe.network", "CTO", list(roles))
+    u = await users.create_user(ctx, db, "test", "lead@xe.network", "Lead", list(roles))
     return authz.Principal(kind="user", user=u, roles=set(roles))
 
 

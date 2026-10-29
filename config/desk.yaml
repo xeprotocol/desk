@@ -4,7 +4,7 @@
 programme:
   name: XE bug bounty
   rules_url: https://test.network/bounty
-  # Every actionable report maps to a ticket in the CTO's internal tracker; the desk links, never writes.
+  # Every actionable report maps to a ticket in the engineering tracker; the desk links, never writes.
   internal_tracker_name: internal
 
 # Severity order, highest first. Ceilings are the targeted amounts on the rules page, in whole XE;
@@ -89,7 +89,7 @@ github:
   # Shown once on an issue when the desk first touches it, if the tool is public.
   first_touch_note: true
 
-# The engineering tracker: the CTO's own tickets. Private; the desk reads it with GITHUB_TOKEN and
+# The engineering tracker: the team's own tickets. Private; the desk reads it with GITHUB_TOKEN and
 # never writes to it. An internal ticket names the public report(s) it covers in its title or body
 # with the public repo's short name and number, e.g. "security: bounty bundle xe#8" → xeprotocol/xe#8.
 # Several public reports may share one internal ticket. Reading its state moves the public ticket:

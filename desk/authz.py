@@ -1,8 +1,8 @@
 """Who may do what. One matrix, enforced here, tested in tests/test_authz.py.
 
 An agent recommends; a human decides and speaks. There is no agent scope that sends a reply, sets a
-status, sets an award, or reads a payout address. Tier rulings sit with the `tier` role (the CTO and
-named delegates), not with every Reviewer.
+status, sets an award, or reads a payout address. Tier rulings sit with the `tier` role, which any team
+member can be given, not with every Reviewer.
 """
 
 from __future__ import annotations

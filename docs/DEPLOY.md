@@ -85,10 +85,10 @@ Back up `secrets/signer.json` and the passphrase separately. Losing the vault ke
 ```sh
 docker compose up -d                       # db, migrate (one-shot), app, worker
 docker compose logs migrate                # "Running upgrade -> 0001"
-docker compose exec app desk users add cto@xe.network --name "CTO" --roles reviewer,tier,treasurer,admin
+docker compose exec app desk users add you@xe.network --name "Your name" --roles reviewer,tier,treasurer,admin
 ```
 
-Open the printed invite link in a browser within seven days; it signs you in once. On `/team/account`, add a passkey, and set up a TOTP code as the fallback. Then `/team/users` to add the rest of the team (each gets an invite link), granting `tier` only to the CTO and named delegates.
+Open the printed invite link in a browser within seven days; it signs you in once. On `/team/account`, add a passkey, and set up a TOTP code as the fallback. Then `/team/users` to add the rest of the team (each gets an invite link), granting `tier` to whoever should rule on severity; any team member can hold it.
 
 ## 4. Import
 
@@ -108,7 +108,7 @@ Then the worker's first `push` run (within a minute) puts the status labels on t
 
 ## 5. Webhook
 
-In each repo, Settings → Webhooks → Add: payload URL `https://bounty.xe.network/v1/github/webhook`, content type `application/json`, secret as in `.env`, events: Issues, Issue comments, Pull requests. On `xeprotocol/core` the same webhook with Issues only: when the CTO closes an internal ticket, the public ticket it names goes to `patched` and into the outbox within seconds. The poll every two minutes covers anything the webhook misses.
+In each repo, Settings → Webhooks → Add: payload URL `https://bounty.xe.network/v1/github/webhook`, content type `application/json`, secret as in `.env`, events: Issues, Issue comments, Pull requests. On `xeprotocol/core` the same webhook with Issues only: when an internal ticket is closed, the public ticket it names goes to `patched` and into the outbox within seconds. The poll every two minutes covers anything the webhook misses.
 
 ## 6. Agent tokens
 

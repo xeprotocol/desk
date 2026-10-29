@@ -19,7 +19,7 @@ Every report is a ticket with an id like `XE-0045`. It has one of four sources, 
 
 Imported history: the 90 rows of [`BOUNTY_TRIAGE.md`](BOUNTY_TRIAGE.md) were applied on 29 October. Those tickets already carry a verdict, tier, gate, effort, area and internal ref, plus the triage reasoning as notes under the `triage import` agent token. They are the baseline; everything from here is incremental.
 
-The CTO's engineering tracker, `xeprotocol/core`, is read, never written. When an internal ticket names a public report (`xe#63` in its title or body), the desk links it as `internal_ref` and follows its state: open → the report is `accepted`; closed as completed → `patched` and into the outbox; closed as not planned → a note for a human to rule on.
+The engineering tracker, `xeprotocol/core`, is read, never written. When an internal ticket names a public report (`xe#63` in its title or body), the desk links it as `internal_ref` and follows its state: open → the report is `accepted`; closed as completed → `patched` and into the outbox; closed as not planned → a note for a human to rule on.
 
 ## 3. The ticket
 
@@ -27,7 +27,7 @@ The CTO's engineering tracker, `xeprotocol/core`, is read, never written. When a
 
 - `area`: consensus, p2p-sync, node-api, leasing-ledger, dao-harness, sdk-docs-web, ops-testnet, other.
 - `claimed_tier`: what the reporter said. Parsed from the issue where it says "Severity: High"; otherwise set by hand.
-- `assessed_tier`: what we say. **Only the `tier` role sets this** (the CTO and named delegates). Critical 50k, Severe 25k, High 10k, Medium 2.5k, Minor 650 XE ceilings; `none` for notices.
+- `assessed_tier`: what we say. **Only the `tier` role sets this**; any team member can hold it, and it is granted on `/team/users`. Critical 50k, Severe 25k, High 10k, Medium 2.5k, Minor 650 XE ceilings; `none` for notices.
 - `verdict`: valid, likely-valid, design-gap, duplicate, notice, support, invalid, out-of-scope.
 - `duplicate_of`: the earlier ticket. Duplicates close with that reason; the award goes to the first.
 - `mainnet_gate`: **before** (must be fixed before mainnet), **decide** (a design call to make before mainnet), **later** (can follow launch). This is the priority axis after severity.
@@ -67,7 +67,7 @@ Two other views matter:
 - **`/team/release`**: every `before` and `decide` ticket grouped by area, severity order inside each. This is the mainnet list. If it's on here, it blocks launch or needs a decision before launch.
 - **`/team/outbox`**: every ticket whose status moved past triage but whose reporter hasn't been told since. Fixed-but-silent is the failure mode the programme had before the desk; this view exists so it can't happen quietly. Aim to keep it empty.
 
-Priority, in words: a `before`-gated Critical or Severe beats everything; then `before` High; then anything in the outbox (a reply costs minutes and is owed); then `decide` tickets, which need the CTO; then the rest of `before` by severity; `later` tickets are worked when the above is clear, Minor last.
+Priority, in words: a `before`-gated Critical or Severe beats everything; then `before` High; then anything in the outbox (a reply costs minutes and is owed); then `decide` tickets, which need a design call from whoever owns that area; then the rest of `before` by severity; `later` tickets are worked when the above is clear, Minor last.
 
 ## 5. How to work a ticket
 
@@ -77,12 +77,12 @@ Priority, in words: a `before`-gated Critical or Severe beats everything; then `
 2. Set status `triaging` (the list of pending proposals is where most of this is done in bulk; see §6).
 3. Set what you can: area, verdict, gate, effort, internal ref if one exists. If it's a duplicate, set `duplicate_of` and close it with reason `duplicate`; use the `duplicate` reply template so the reporter knows which ticket carries it.
 4. If it needs the reporter: `needs-info`, and reply with the `needs_info` template saying exactly what.
-5. If it's real: `accepted`. If no internal ticket exists, make one in `core` naming the report (`xe#63` in the title); the desk links it on the next poll. Reply with `accepted` so the reporter knows it's taken.
+5. If it's real: `accepted`. If no internal ticket exists, anyone on the team makes one in `core` naming the report (`xe#63` in the title); the desk links it on the next poll. Reply with `accepted` so the reporter knows it's taken.
 6. If it's not a bug: close with `invalid` / `out-of-scope` / `answered` and the matching template. Say why in a sentence; the reply is public and the next reporter reads it.
 
-**Tier (CTO and delegates)**
+**Tier (the `tier` role)**
 
-Set `assessed_tier` on accepted tickets. Adopting an agent's tier proposal also needs the `tier` role; a reviewer without it sees the proposal but can't adopt it. The tier is what the award follows, so it's set with the fix in view, not from the report alone.
+Set `assessed_tier` on accepted tickets. Adopting an agent's tier proposal also needs the `tier` role; a reviewer without it sees the proposal but can't adopt it. The role is separate from reviewer only because the tier is the money: give it to the people you want deciding awards, however many that is. The tier is what the award follows, so it's set with the fix in view, not from the report alone.
 
 **When the fix lands (anyone)**
 
@@ -137,7 +137,7 @@ An issue closed on GitHub by someone before the desk ruled is left open on the d
 ## 9. Every day
 
 - Someone owns the queue each day. Morning: `/team/outbox` to zero, then `new` tickets to `triaging` with proposals adopted or rejected, then anything `needs-info` older than two weeks closed `stale` with the `needs_info` reply left as the last word.
-- The CTO or a delegate rules tier on anything `accepted` without one, weekly at least.
+- Whoever holds `tier` rules on anything `accepted` without one, weekly at least.
 - Treasurers approve awards as tickets reach `patched`/`disclosed`, not in a batch at genesis.
 - `/live` is the event stream; `/log` is the ledger. The worker writes a daily note with the counts, so the log reads as a diary.
 - Policy (tiers, ceilings, areas, templates, scope text) is `config/desk.yaml` and `config/copy/*.yaml`, changed by pull request, hashed and published at `GET /v1`. Nobody edits policy from a screen.

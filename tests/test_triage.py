@@ -1,6 +1,6 @@
 """The triage parser against the real docs/BOUNTY_TRIAGE.md: the import has to reproduce the doc's own
 counts (90 rows: 87 issues + E1–E3; 32 before, 27 later, 1 decide; 8 duplicates, 4 notices, 8 invalid,
-5 support) and the CTO's five rulings."""
+5 support) and the five rulings."""
 
 from collections import Counter
 

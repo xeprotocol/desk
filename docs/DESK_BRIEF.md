@@ -1,6 +1,6 @@
 # XE Desk, Brief
 
-Working brief for a ticketed bug bounty and community support tool for XE. Version 0.3, 28 October 2026. Draft for Joseph, Will and Adam. 0.2 added the internal engineering ticket to the data model and the import, following the CTO's pass over the triage; 0.3 applies the XE project stack and principles from `xeprotocol/dao`.
+Working brief for a ticketed bug bounty and community support tool for XE. Version 0.3, 28 October 2026. Draft for Joseph, Will and Adam. 0.2 added the internal engineering ticket to the data model and the import, following the engineering pass over the triage; 0.3 applies the XE project stack and principles from `xeprotocol/dao`.
 
 It fixes scope, the data model, the roles, the integrations and the sequencing. It is not the bounty rules; those stay on [test.network/bounty](https://test.network/bounty) and the tool enforces them rather than restating them.
 
@@ -10,7 +10,7 @@ It fixes scope, the data model, the roles, the integrations and the sequencing. 
 
 The bounty programme runs on public GitHub issues and a shared mailbox. As of 28 October there are 87 open issues, 36 open PRs, no labels, no maintainer replies, three Severe reports that went public because `security@` bounced, two accounts posting payout wallets into other people's threads, and a leaderboard that updates when the website is redeployed. The triage of all of it is in [`BOUNTY_TRIAGE.md`](BOUNTY_TRIAGE.md), and it lives in a markdown file because there is nowhere else to put it.
 
-The engineering side already works the other way round. The CTO's pass on 28 October put an internal ticket against every actionable report (`#1047`–`#1103` opened for it, nine existing ones linked), re-tiered five, marked two partial and ten fixed or closed. None of that reaches GitHub: eleven issues that are fixed or closed internally are still open there with no reply. The gap the desk closes is between the internal tracker, where the work happens, and the public thread, where the reporter is waiting.
+The engineering side already works the other way round. The engineering pass on 28 October put an internal ticket against every actionable report (`#1047`–`#1103` opened for it, nine existing ones linked), re-tiered five, marked two partial and ten fixed or closed. None of that reaches GitHub: eleven issues that are fixed or closed internally are still open there with no reply. The gap the desk closes is between the internal tracker, where the work happens, and the public thread, where the reporter is waiting.
 
 Adam's ask, which this brief adopts as the shape of the thing:
 
@@ -104,7 +104,7 @@ proposal          agent-authored change to any ticket field; state pending | ado
 
 The bounty fields are exactly the columns of `BOUNTY_TRIAGE.md`, including the Internal column, so the triage imports without translation and the tool's own export reproduces the doc.
 
-`assessed_tier` is the CTO's ruling, or that of a Reviewer the CTO delegates to. The triage agent's reading is a proposal against it, never the value itself. Where the two differed on 28 October (#8, #4, #96, E2, #20) the CTO's tier stands and the agent's reading survives as a note; the desk should make that the normal shape of a disagreement.
+`assessed_tier` is the ruling of whoever holds the `tier` role; any team member can. The triage agent's reading is a proposal against it, never the value itself. Where the two differed on 28 October (#8, #4, #96, E2, #20) the team's tier stands and the agent's reading survives as a note; the desk should make that the normal shape of a disagreement.
 
 Status flow for bounty tickets:
 
@@ -113,7 +113,7 @@ new → triaging → (needs-info ⇄) → accepted → fixing → patched → di
                               ↘ closed (duplicate | invalid | out-of-scope | withdrawn)
 ```
 
-The internal tracker's states map onto this flow rather than adding a parallel one: a report with an internal ticket is `accepted`; a partial fix is `fixing`; a merged fix is `patched` with the PR in `patch_refs`. "Exists" (the internal ticket predates the report) is an event on the ticket, not a state. The desk never writes to the internal tracker; it links to it, and it reads it. The tracker is the private `xeprotocol/core` issues. The CTO names the public report in the internal ticket, `security: bounty bundle xe#8` meaning `xeprotocol/xe#8` (several reports can be named by one ticket; `dao#1`, `sdk#11` for the other repos). The worker reads `core` with the same GitHub token it uses for the public repos: the tag fills `internal_ref`; an open internal ticket moves a `triaging` report to `accepted`; one closed as completed moves `accepted` or `fixing` to `patched` and the report into the outbox; one closed as not planned leaves a note, since the public verdict is the Reviewer's. Where the triage doc already named a different internal ticket, the desk notes the second rather than overwriting.
+The internal tracker's states map onto this flow rather than adding a parallel one: a report with an internal ticket is `accepted`; a partial fix is `fixing`; a merged fix is `patched` with the PR in `patch_refs`. "Exists" (the internal ticket predates the report) is an event on the ticket, not a state. The desk never writes to the internal tracker; it links to it, and it reads it. The tracker is the private `xeprotocol/core` issues. The internal ticket names the public report, `security: bounty bundle xe#8` meaning `xeprotocol/xe#8` (several reports can be named by one ticket; `dao#1`, `sdk#11` for the other repos). The worker reads `core` with the same GitHub token it uses for the public repos: the tag fills `internal_ref`; an open internal ticket moves a `triaging` report to `accepted`; one closed as completed moves `accepted` or `fixing` to `patched` and the report into the outbox; one closed as not planned leaves a note, since the public verdict is the Reviewer's. Where the triage doc already named a different internal ticket, the desk notes the second rather than overwriting.
 
 Support tickets: `new → triaging → (needs-info ⇄) → closed (answered | stale)`. A support ticket that turns out to be a bug is converted to `bounty` with one click and keeps its history.
 
@@ -146,7 +146,7 @@ GET    /v1/events?since=                      firehose for the owner's agent, SS
 
 Scopes: `read:public`, `read:private`, `write:notes`, `write:proposals`, `write:patch-refs`. There is no agent scope that sends a reply, sets a status, sets an award, or reads a payout address. An agent's token can see a private report's PoC only if its owner can and granted it.
 
-An agent's typical loop: pull `new` tickets, read the report against the tree, post a note with its reading, propose tier, verdict, duplicate, the existing internal ticket if one already covers it, and both efforts, link any community PR it judges relevant. The human adopts in bulk from the list view. This is what produced `BOUNTY_TRIAGE.md` by hand, and what the CTO's pass then corrected in five places; the API makes both halves the daily default.
+An agent's typical loop: pull `new` tickets, read the report against the tree, post a note with its reading, propose tier, verdict, duplicate, the existing internal ticket if one already covers it, and both efforts, link any community PR it judges relevant. The human adopts in bulk from the list view. This is what produced `BOUNTY_TRIAGE.md` by hand, and what the engineering pass then corrected in five places; the API makes both halves the daily default.
 
 ## 8. The reporter portal
 
@@ -175,7 +175,7 @@ The rules page keeps saying "report on GitHub". That stays true; GitHub becomes 
 
 `BOUNTY_TRIAGE.md` is the seed. One-off importer, run once after the GitHub import:
 
-- Reads the triage tables (or a JSON export of the same rows, which the canvas can produce) and, for each `#n`, sets `verdict`, `claimed_tier`, `assessed_tier`, `area`, `effort_eng`, `mainnet_gate`, `duplicate_of`, `internal_ref`, `patch_refs`, and files the italic note as an internal note attributed to the triage agent token dated 28 October. `assessed_tier` is the CTO's value as it stands in the doc; where the doc records that the first reading differed, the first reading goes into the note.
+- Reads the triage tables (or a JSON export of the same rows, which the canvas can produce) and, for each `#n`, sets `verdict`, `claimed_tier`, `assessed_tier`, `area`, `effort_eng`, `mainnet_gate`, `duplicate_of`, `internal_ref`, `patch_refs`, and files the italic note as an internal note attributed to the triage agent token dated 28 October. `assessed_tier` is the ruled value as it stands in the doc; where the doc records that the first reading differed, the first reading goes into the note.
 - Maps the Internal column onto status:
 
   | Internal | status | also |
@@ -190,7 +190,7 @@ The rules page keeps saying "report on GitHub". That stays true; GitHub becomes 
   | support (faucet, stale genesis, the `#1027` incident) | `kind = support`, `closed` / `answered` | `internal_ref` kept (`faucet#10`, `#1027`) |
 
 - Creates E1, E2 and E3 as private tickets from the emails, with the payout addresses in `payout_address` and the reporters invited by email to claim them. E1 imports as `closed` / `duplicate` of #14, whose own ticket is `patched` on `#1028`; whether a duplicate of a fixed finding is paid is a programme decision, not the importer's.
-- Imports the facts as facts, not as proposals. The doc is already the CTO's ruling, so re-proposing it to the person who made it would be noise; the import event records the triage agent token as the source and the CTO's pass as the authority. Proposals start with the first new ticket after import.
+- Imports the facts as facts, not as proposals. The doc is already the team's ruling, so re-proposing it to the people who made it would be noise; the import event records the triage agent token as the source and the engineering pass as the authority. Proposals start with the first new ticket after import.
 
 After import, the tool is the source of truth and `BOUNTY_TRIAGE.md` becomes a dated snapshot; `GET /v1/export/triage.md` produces the current one.
 
@@ -288,7 +288,7 @@ The agent clock assumes a human spends a few hours per release on review and a d
 2. ~~Does `test.network/bounty` keep "report on GitHub" as step one, or does it send people to the portal with GitHub as the fallback?~~ Decided 28 October: portal first. The rules page sends people to `bounty.xe.network/report`; GitHub stays a channel the desk reads, not the front door. Rules-page copy change pending.
 3. ~~Reporter identity for payouts: is a GitHub login plus a payout address enough, or do we require an XE key signature on the payout address to prove control?~~ Decided 28 October: the signature is required. `/account` binds an address only through a signed request under `xe/desk/payout/v1` whose key derives to that address; the treasurer's payout export carries only bound addresses.
 4. Which agent runs the triage loop day to day, under whose token? Adam's, by his own description; Joseph's for the DAO harness tickets.
-5. Who is a Reviewer on day one, and is Adam a Treasurer? The Operating Agreement says treasury is members-only; the desk should mirror that unless a resolution says otherwise. Tier rulings already sit with the CTO in practice; the desk should name that (a `tier` permission within Reviewer, or simply the CTO plus named delegates) rather than let any Reviewer re-tier.
+5. Who is a Reviewer on day one, and is Adam a Treasurer? The Operating Agreement says treasury is members-only; the desk should mirror that unless a resolution says otherwise. Tier rulings should sit with a named `tier` role that any team member can hold, rather than with every Reviewer.
 8. ~~Where does the internal tracker live, and does the desk get read access?~~ Answered 28 October: `xeprotocol/core` issues, tagged `xe#NN`; the desk reads them (§5) and the outbox fills from the tracker's state.
 6. Bounty scope for `xeprotocol/dao` and `xeprotocol/sdk`: three reporters have asked. The desk can take tickets for them regardless; whether they pay is a programme decision to put on the rules page.
 7. Retention of PoCs after disclosure and payout: keep encrypted indefinitely, or purge after N days? Recommendation: keep, encrypted, as the record of what was paid for.
