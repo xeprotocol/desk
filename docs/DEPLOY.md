@@ -120,26 +120,15 @@ Or on `/team/tokens`. The token is shown once. An agent then reads `https://boun
 
 ## 7. Day to day
 
-Releases 2 and 3 change the schema (`reporters` gains columns; `reporter_sessions`, `reporter_links` are new; `challenges.detail`; `tickets.channel_state`). Migration `0001` is `create_all`, so on an existing install reset the schema and re-import; nothing filed on the web exists yet, GitHub and the triage doc are the sources of truth:
+Schema changes ship as Alembic migrations; the `migrate` service runs them on every `up`. Routine update:
 
 ```sh
-docker compose build
-docker compose run --rm migrate alembic downgrade base && docker compose run --rm migrate alembic upgrade head
-docker compose up -d --force-recreate app worker
-docker compose exec app desk import-github && docker compose exec app desk import-triage && docker compose exec app desk import-internal
+cd /opt/desk && git pull && docker compose build
+docker compose up -d                       # migrate runs 0002…, then app and worker restart on the new image
+docker compose --profile discord up -d     # if the bot is in use
 ```
 
-Re-create the first team user afterwards (`desk users add ...` from §3); team sessions and passkeys are in the dropped tables.
-
-```sh
-docker compose exec app desk health          # node, log head, keys, hosts, config hashes
-docker compose exec app desk verify-log      # replays the chain; non-zero exit on a break
-docker compose exec app desk export-triage --out /app/blobs/triage-$(date +%F).md
-docker compose exec app desk copy-lint       # fails on a kill-list phrase in public copy or templates
-docker compose logs -f worker                # github poll, outbox, push, health, anchors
-```
-
-Upgrade: `git pull && export GIT_COMMIT=$(git rev-parse --short HEAD) && docker compose build && docker compose up -d`. The `migrate` service runs before `app` and `worker` start.
+`0002` adds what Releases 2 and 3 introduced (reporter sessions and links, payout proof, `tickets.channel_state`) with `IF NOT EXISTS`, so it is safe on a database of any age. If you ever need a clean slate instead: `docker compose run --rm migrate alembic downgrade base && docker compose run --rm migrate alembic upgrade head`, then re-create the first team user (`desk users add`, §3) and re-import (§4).
 
 ## 8. If a page is blank
 
