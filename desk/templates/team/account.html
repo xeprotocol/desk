@@ -7,6 +7,12 @@
 
 <div class="grid">
 <div class="card">
+  <h3>Name</h3>
+  <p>The name on every reply you send. Reporters see it on GitHub and on the desk.</p>
+  <div class="row"><input type="text" id="my-name" value="{{ p.user.name }}" maxlength="128" style="max-width:260px"><button class="mini" type="button" id="save-name">Save</button></div>
+  <div class="msg" id="name-msg" style="display:none"></div>
+</div>
+<div class="card">
   <h3>Passkeys</h3>
   {% if not keys %}<p>None yet. Add one now so you can sign in without the code.</p>{% endif %}
   <table class="toks">{% for k in keys %}<tr><td>{{ k.label or "passkey" }}</td><td class="k">added {{ k.created_at|day }}{% if k.last_used_at %}, used {{ k.last_used_at|day }}{% endif %}</td><td class="right"><button class="ghost mini" type="button" data-remove-passkey="{{ k.id }}">Remove</button></td></tr>{% endfor %}</table>

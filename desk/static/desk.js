@@ -132,6 +132,12 @@
       try { await api("DELETE", `/v1/auth/passkeys/${b.dataset.removePasskey}`); reload(); } catch (e) { say($("#passkey-msg"), e.message, false); }
     }));
   }
+  const saveName = $("#save-name");
+  if (saveName) saveName.addEventListener("click", async () => {
+    saveName.disabled = true;
+    try { await api("POST", "/v1/team/account/name", { name: $("#my-name").value.trim() }); say($("#name-msg"), "Saved.", true); setTimeout(reload, 500); }
+    catch (e) { say($("#name-msg"), e.message, false); saveName.disabled = false; }
+  });
   if ($("#setup-totp")) {
     let cid = null;
     $("#setup-totp").addEventListener("click", async () => {
@@ -188,6 +194,12 @@
   }
   $$("[data-invite]").forEach(b => b.addEventListener("click", async () => {
     try { const inv = await api("POST", `/v1/auth/invite/${b.dataset.invite}`); say($("#users-msg"), `Invite link${inv.emailed ? " (also emailed)" : ""}: ${inv.url}`, true); $("#users-msg").style.userSelect = "all"; }
+    catch (e) { say($("#users-msg"), e.message, false); }
+  }));
+  $$("[data-rename]").forEach(el => el.addEventListener("click", async () => {
+    const name = prompt("Name on this person's replies:", el.textContent.trim());
+    if (name === null || !name.trim()) return;
+    try { await api("PATCH", `/v1/team/users/${el.dataset.rename}`, { name: name.trim() }); reload(); }
     catch (e) { say($("#users-msg"), e.message, false); }
   }));
   $$("[data-toggle-active]").forEach(b => b.addEventListener("click", async () => {

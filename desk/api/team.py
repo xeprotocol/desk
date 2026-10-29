@@ -323,6 +323,20 @@ async def add_user(ctx: Ctx, db: Db, who: Who, request: Request, body: UserIn):
 class UserEditIn(BaseModel):
     roles: list[str] | None = None
     active: bool | None = None
+    name: str | None = None
+
+
+class NameIn(BaseModel):
+    name: str
+
+
+@router.post("/account/name")
+async def rename_me(ctx: Ctx, db: Db, who: Who, request: Request, body: NameIn):
+    """Your own display name, the one on your replies."""
+    _team(who, request)
+    await users.set_name(ctx, db, who.principal.actor, who.principal.user, body.name)
+    await db.commit()
+    return users.user_dict(who.principal.user)
 
 
 @router.patch("/users/{uid}")
@@ -332,6 +346,8 @@ async def edit_user(ctx: Ctx, db: Db, who: Who, request: Request, uid: int, body
     u = await users.by_id(db, uid)
     if u is None:
         raise HTTPException(404, "no such user")
+    if body.name is not None:
+        await users.set_name(ctx, db, who.principal.actor, u, body.name)
     if body.roles is not None:
         await users.set_roles(ctx, db, who.principal.actor, u, body.roles)
     if body.active is not None:

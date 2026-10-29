@@ -234,6 +234,18 @@ async def test_agent_proposes_human_adopts(ctx, db):
     assert not any("Thanks, reproduced" in str(e.payload) for e in pub), "drafts never land in the public log"
 
 
+async def test_a_member_is_renamed_and_future_replies_carry_it(ctx, db):
+    team = await _team(ctx, db)
+    t = await tsvc.create(ctx, db, "desk", tsvc.NewTicket(kind="bounty", title="Renaming test", body="b" * 50))
+    r1 = await thread.add_reply(ctx, db, team, t, "First reply, under the old name.")
+    await users.set_name(ctx, db, "cli", team.user, "  Joseph   Denne ")
+    assert team.user.name == "Joseph Denne"
+    r2 = await thread.add_reply(ctx, db, team, t, "Second reply, under the new name.")
+    assert r1.author_name == "Lead" and r2.author_name == "Joseph Denne"
+    with pytest.raises(HTTPException):
+        await users.set_name(ctx, db, "cli", team.user, "   ")
+
+
 # ---- github sync ------------------------------------------------------------------------------------
 
 

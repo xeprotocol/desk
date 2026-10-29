@@ -52,6 +52,17 @@ async def set_roles(ctx: Context, db: AsyncSession, actor: str, u: User, roles: 
     await ctx.events.append(db, "user.roles", actor, {"user": u.id, "from": old, "to": u.roles})
 
 
+async def set_name(ctx: Context, db: AsyncSession, actor: str, u: User, name: str) -> None:
+    """The name on every reply this person sends. Changing it changes future replies only; past ones
+    keep the name they were sent under."""
+    name = " ".join((name or "").split())
+    if not 1 <= len(name) <= 128:
+        raise HTTPException(400, "a name is 1 to 128 characters")
+    old = u.name
+    u.name = name
+    await ctx.events.append(db, "user.renamed", actor, {"user": u.id, "from": old, "to": name})
+
+
 async def set_active(ctx: Context, db: AsyncSession, actor: str, u: User, active: bool) -> None:
     u.active = active
     await ctx.events.append(db, "user.active", actor, {"user": u.id, "active": active})

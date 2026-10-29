@@ -152,6 +152,28 @@ def users_roles(email: str, roles: str):
     _run(go())
 
 
+@users_app.command("rename")
+def users_rename(email: str, name: str):
+    """Change the name a member's replies are sent under."""
+
+    async def go():
+        from .db import session
+        from .services import users
+
+        ctx = _ctx()
+        async with session() as db:
+            u = await users.by_email(db, email)
+            if u is None:
+                typer.echo("no such user", err=True)
+                raise typer.Exit(1)
+            await users.set_name(ctx, db, "cli", u, name)
+            await db.commit()
+            typer.echo(f"{u.email} is now {u.name!r}")
+        await ctx.aclose()
+
+    _run(go())
+
+
 @users_app.command("list")
 def users_list():
     async def go():

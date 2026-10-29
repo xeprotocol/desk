@@ -26,7 +26,7 @@
 <tbody>
 {% for u in users %}
 <tr class="{{ 'mute' if not u.active }}" data-user="{{ u.id }}">
-  <td>{{ u.name }}</td><td>{{ u.email }}</td>
+  <td>{% if is_admin %}<span class="name" data-rename="{{ u.id }}" title="click to rename">{{ u.name }}</span>{% else %}{{ u.name }}{% endif %}</td><td>{{ u.email }}</td>
   <td>{% for r in u.roles %}<span class="pill">{{ r }}</span> {% endfor %}{% if not u.active %}<span class="pill closed">inactive</span>{% endif %}</td>
   <td class="num">{{ u.last_login_at|dt }}</td>
   <td class="right">{% if is_admin %}<button class="ghost mini" type="button" data-invite="{{ u.id }}">Invite link</button> <button class="ghost mini" type="button" data-toggle-active="{{ u.id }}" data-active="{{ 'true' if u.active else 'false' }}">{{ "Deactivate" if u.active else "Reactivate" }}</button>{% endif %}</td>
