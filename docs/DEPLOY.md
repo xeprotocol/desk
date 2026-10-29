@@ -37,7 +37,9 @@ Edit `.env`:
 - `GITHUB_TOKEN`: a fine-grained token with Issues read/write and Pull requests read on `xeprotocol/xe`, `xeprotocol/dao`, `xeprotocol/sdk`, and Issues read on the private `xeprotocol/core`. `GITHUB_BOT_LOGIN`: the account it belongs to.
 - `GITHUB_WEBHOOK_SECRET`: long random; the same string goes in the GitHub webhook.
 - `INTERNAL_TRACKER_URL`: already `https://github.com/xeprotocol/core/issues/{ref}`; change only if the tracker moves (and change `internal.repo` in `config/desk.yaml` with it).
-- `SMTP_*`: optional; without it, invite links are printed instead of emailed.
+- `SMTP_*`: optional; without it, invite links are printed instead of emailed, and reporters' email sign-in links go to the app log (`docker compose logs app | grep "would send"`) rather than to them.
+- `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET`: for "Continue with GitHub" on the reporter sign-in. Create an OAuth App on the `xeprotocol` org (Settings → Developer settings → OAuth Apps): homepage `https://bounty.xe.network`, callback `https://bounty.xe.network/v1/reporter/auth/github/callback`. Both hosts send the browser to the bounty host for the callback; the cookie is set for `.xe.network` so it works on both. Left empty, the button is hidden and reporters sign in by email link or XE key.
+- `DESK_MAX_ATTACHMENT_MB`, `DESK_MAX_ATTACHMENTS`: filing-form limits (10 MB, 5 files by default). Attachments live in the `blobs` volume; private ones are sealed with the vault key, so the volume is useless without `secrets/signer.json`.
 
 ## 2. Build and test
 
@@ -116,6 +118,17 @@ docker compose exec app desk tokens issue cto@xe.network claude-fable-5.1 --labe
 Or on `/team/tokens`. The token is shown once. An agent then reads `https://bounty.xe.network/llms.txt` and calls `/v1` with `Authorization: Bearer desk_…`.
 
 ## 7. Day to day
+
+Release 2 changes the schema (`reporters` gains columns; `reporter_sessions`, `reporter_links` are new; `challenges.detail`). Migration `0001` is `create_all`, so on an existing install reset the schema and re-import; nothing filed on the web exists yet, GitHub and the triage doc are the sources of truth:
+
+```sh
+docker compose build
+docker compose run --rm migrate alembic downgrade base && docker compose run --rm migrate alembic upgrade head
+docker compose up -d --force-recreate app worker
+docker compose exec app desk import-github && docker compose exec app desk import-triage && docker compose exec app desk import-internal
+```
+
+Re-create the first team user afterwards (`desk users add ...` from §3); team sessions and passkeys are in the dropped tables.
 
 ```sh
 docker compose exec app desk health          # node, log head, keys, hosts, config hashes

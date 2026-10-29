@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     github_token: str = Field(default="", alias="GITHUB_TOKEN")
     github_webhook_secret: str = Field(default="", alias="GITHUB_WEBHOOK_SECRET")
     github_bot_login: str = Field(default="", alias="GITHUB_BOT_LOGIN")  # the account GITHUB_TOKEN belongs to
+    # Reporter sign-in with GitHub (an OAuth app; callback is {bounty host}/v1/reporter/auth/github/callback)
+    github_oauth_client_id: str = Field(default="", alias="GITHUB_OAUTH_CLIENT_ID")
+    github_oauth_client_secret: str = Field(default="", alias="GITHUB_OAUTH_CLIENT_SECRET")
+    # Filing limits
+    max_attachment_mb: int = Field(default=10, alias="DESK_MAX_ATTACHMENT_MB")
+    max_attachments: int = Field(default=5, alias="DESK_MAX_ATTACHMENTS")
     # Links for `internal_ref`. The tracker is xeprotocol/core (private; the link only resolves for the team).
     internal_tracker_url: str = Field(
         default="https://github.com/xeprotocol/core/issues/{ref}", alias="INTERNAL_TRACKER_URL"
@@ -88,6 +94,15 @@ class Settings(BaseSettings):
         if base not in out:
             out.append(base)
         return out
+
+    @property
+    def cookie_domain(self) -> str | None:
+        """Sessions span both front doors when they share a registrable suffix (bounty. and support. on
+        xe.network); a single host or localhost gets a host-only cookie."""
+        if self.hosts["bounty"] == self.hosts["support"]:
+            return None
+        rp = self.rp_id
+        return rp if rp not in self.hosts.values() and rp != "localhost" else None
 
     def internal_url(self, ref: str) -> str:
         """Link for an internal ticket reference such as `#1064` or `faucet#10`; empty when unconfigured."""

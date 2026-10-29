@@ -35,8 +35,13 @@
       {% if site == "bounty" %}<a href="/team/release" {% if path == "/team/release" %}class="active"{% endif %}>{{ copy.labels.release }}</a>{% endif %}
       <a href="/team/outbox" {% if path == "/team/outbox" %}class="active"{% endif %}>{{ copy.labels.outbox }}</a>
       <a href="/team/account" class="who" title="{{ p.user.email }}">{{ p.name }}</a>
+      {% elif me %}
+      <a href="/my" {% if path == "/my" %}class="active"{% endif %}>{{ copy.labels.my_questions if site == "support" else copy.labels.my_reports }}</a>
+      <a href="/account" class="who" title="account">{{ me.display_name or me.github_login or me.email or "you" }}</a>
+      <a href="{{ '/ask' if site == 'support' else '/report' }}" class="cta">{{ copy.labels.ask if site == "support" else copy.labels.report }}</a>
       {% else %}
-      <a href="/team/login" class="cta">{{ copy.labels.team }}</a>
+      <a href="/signin" {% if path == "/signin" %}class="active"{% endif %}>{{ copy.labels.signin }}</a>
+      <a href="{{ '/ask' if site == 'support' else '/report' }}" class="cta">{{ copy.labels.ask if site == "support" else copy.labels.report }}</a>
       {% endif %}
     </nav>
   </div>
@@ -57,6 +62,7 @@
     {% if head %}<span>·</span><a href="/v1/log/head">log head {{ head.hash|short }}</a>{% endif %}
     {% if site == "support" %}<span>·</span><a href="{{ bounty_url }}">bug bounty</a>{% else %}<span>·</span><a href="{{ support_url }}">support</a>{% endif %}
     <span>·</span><a href="https://github.com/xeprotocol/xe/issues">github</a>
+    {% if not team %}<span>·</span><a href="/team/login">team</a>{% endif %}
     <span>·</span><a href="https://xe.network">xe.network</a>
   </div>
 </div></footer>

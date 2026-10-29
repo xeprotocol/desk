@@ -233,7 +233,7 @@ async def logout(ctx: Ctx, db: Db, who: Who, request: Request, response: Respons
     if who.session is not None:
         await auth.end_session(db, request)
         await db.commit()
-    auth.clear_session_cookie(response)
+    auth.clear_session_cookie(response, ctx.settings)
     return {"ok": True}
 
 

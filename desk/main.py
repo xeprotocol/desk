@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import __version__
-from .api import agent, authn, public, team
+from .api import agent, authn, public, reporter, team
 from .config import lint_public_copy, strip_template
 from .context import get_context
 from .db import session
@@ -77,6 +77,7 @@ app.include_router(public.router)
 app.include_router(agent.router)
 app.include_router(team.router)
 app.include_router(authn.router)
+app.include_router(reporter.router)
 app.include_router(ui_router)
 app.mount("/static", StaticFiles(directory=str(HERE / "static")), name="static")
 app.add_middleware(MarkdownMirror, base_url="")

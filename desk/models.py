@@ -189,7 +189,8 @@ class Challenge(Base):
 
     __tablename__ = "challenges"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    kind: Mapped[str] = mapped_column(String(16), nullable=False)  # register | login
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)  # register | login | totp | oauth
+    detail: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     challenge: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -231,14 +232,47 @@ class Reporter(Base):
     github_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, unique=True)
     email: Mapped[str] = mapped_column(String(256), nullable=False, default="", index=True)
     display_name: Mapped[str] = mapped_column(String(128), nullable=False, default="")
-    xe_address: Mapped[str] = mapped_column(
-        String(64), nullable=False, default=""
-    )  # proven by signature (R2)
+    # The payout address, proven: the reporter signed {"address": xe_address} under xe/desk/payout/v1
+    # with the key that derives to it. payout_proof keeps the pub key, signature and timestamp.
+    xe_address: Mapped[str] = mapped_column(String(64), nullable=False, default="", index=True)
+    payout_proof: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    # Addresses this reporter has signed in with (xe/desk/login/v1); the first becomes the account's key.
+    xe_login_addresses: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     platform_ids: Mapped[dict] = mapped_column(
         JSONB, nullable=False, default=dict
     )  # discord/telegram ids (R3)
     claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ReporterSession(Base):
+    """A reporter's browser session; same shape as the team's, a different cookie and table so that
+    neither can ever be mistaken for the other."""
+
+    __tablename__ = "reporter_sessions"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    reporter_id: Mapped[int] = mapped_column(Integer, ForeignKey("reporters.id"), nullable=False, index=True)
+    csrf: Mapped[str] = mapped_column(String(64), nullable=False)
+    how: Mapped[str] = mapped_column(String(16), nullable=False, default="")  # github | email | xe
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ip: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+
+
+class ReporterLink(Base):
+    """A one-time email link for reporters: sign in, or add an email to an account. Fifteen minutes."""
+
+    __tablename__ = "reporter_links"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    email: Mapped[str] = mapped_column(String(256), nullable=False, index=True)
+    reporter_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("reporters.id"), nullable=True)
+    next_path: Mapped[str] = mapped_column(String(256), nullable=False, default="/my")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 # ---- tickets ----------------------------------------------------------------------------------------

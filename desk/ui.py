@@ -23,6 +23,7 @@ from .log import EventLog, event_to_dict
 from .mirror import build_llms_txt, md_path
 from .models import Reporter
 from .services import proposals as psvc
+from .services import reporters as rsvc
 from .services import thread, users
 from .services import tickets as tsvc
 from .services.tickets import Filters
@@ -91,11 +92,14 @@ def other_site(request: Request, site: str, path: str) -> RedirectResponse | Non
 
 
 async def principal(db, request: Request) -> tuple[Principal, str]:
+    """Who is looking, and their CSRF token. The reporter (if any) is left on request.state for render()."""
     try:
         a = await resolve(db, request)
     except Exception:
+        request.state.reporter = None
         return ANON, ""
-    return a.principal, (a.session.csrf if a.session else "")
+    request.state.reporter = a.reporter
+    return a.principal, a.csrf
 
 
 def render(request: Request, name: str, ctx: dict, status_code: int = 200) -> HTMLResponse:
@@ -118,6 +122,9 @@ def render(request: Request, name: str, ctx: dict, status_code: int = 200) -> HT
         "bounty_url": site_url(c, "bounty"),
         "support_url": site_url(c, "support"),
         "split": c.settings.hosts["bounty"] != c.settings.hosts["support"],
+        "me": getattr(request.state, "reporter", None),
+        "github_sign_in": bool(c.settings.github_oauth_client_id),
+        "mail_sign_in": bool(c.settings.smtp_host),
         "p": p,
         "team": p.is_team,
         "csrf": ctx.get("csrf", ""),
@@ -237,6 +244,9 @@ async def ticket_page(request: Request, tid: str):
             if t.reporter_id
             else None
         )
+        me = getattr(request.state, "reporter", None)
+        mine = rsvc.owns(me, t)
+        attachments = await rsvc.attachments_for(db, t) if (p.is_team or mine) else []
     return render(
         request,
         "ticket.html",
@@ -254,6 +264,9 @@ async def ticket_page(request: Request, tid: str):
             "events": events,
             "team_users": team_users,
             "reporter": reporter,
+            "mine": mine,
+            "attachments": attachments,
+            "can_withdraw": mine and t.status in rsvc.OPEN_FOR_REPORTER,
             "url": tsvc.ticket_url(c, t),
             "internal_url": c.settings.internal_url(t.internal_ref),
             "tier_fields": ("assessed_tier",),
@@ -319,6 +332,74 @@ async def live(request: Request):
         p, csrf = await principal(db, request)
         head = await EventLog.head(db)
     return render(request, "live.html", {"p": p, "csrf": csrf, "head": head})
+
+
+# ---- reporter pages ---------------------------------------------------------------------------------
+
+
+@router.get("/signin", response_class=HTMLResponse)
+async def signin(request: Request, next: str | None = None):
+    async with session() as db:
+        p, csrf = await principal(db, request)
+    if getattr(request.state, "reporter", None) is not None:
+        return RedirectResponse(next if next and next.startswith("/") else "/my", status_code=302)
+    return render(request, "reporter/signin.html", {"p": p, "csrf": csrf, "next": next or "/my"})
+
+
+@router.get("/report", response_class=HTMLResponse)
+@router.get("/ask", response_class=HTMLResponse)
+async def report_form(request: Request):
+    """The filing form. /report on the bounty door files a bounty report; /ask on the support door files a
+    question. Each door only shows its own; the other redirects."""
+    c = get_context()
+    want = "support" if request.url.path == "/ask" else "bounty"
+    if r := other_site(request, want, request.url.path):
+        return r
+    async with session() as db:
+        p, csrf = await principal(db, request)
+    me = getattr(request.state, "reporter", None)
+    if me is None:
+        return RedirectResponse(f"/signin?next={request.url.path}", status_code=302)
+    return render(
+        request,
+        "reporter/report.html",
+        {
+            "p": p,
+            "csrf": csrf,
+            "kind": want,
+            "prog": c.config.copy_programme,
+            "vault_ok": c.vault.available,
+            "max_mb": c.settings.max_attachment_mb,
+            "max_files": c.settings.max_attachments,
+        },
+    )
+
+
+@router.get("/my", response_class=HTMLResponse)
+async def my_reports(request: Request):
+    c = get_context()
+    async with session() as db:
+        p, csrf = await principal(db, request)
+        me = getattr(request.state, "reporter", None)
+        if me is None:
+            return RedirectResponse("/signin?next=/my", status_code=302)
+        mine = await rsvc.my_tickets(db, me)
+        site = site_for(request)
+        split = c.settings.hosts["bounty"] != c.settings.hosts["support"]
+        rows = [t for t in mine if t.kind == site] if split else mine
+        other = len(mine) - len(rows)
+    return render(request, "reporter/my.html", {"p": p, "csrf": csrf, "tickets": rows, "other": other})
+
+
+@router.get("/account", response_class=HTMLResponse)
+async def reporter_account(request: Request):
+    async with session() as db:
+        p, csrf = await principal(db, request)
+        me = getattr(request.state, "reporter", None)
+        if me is None:
+            return RedirectResponse("/signin?next=/account", status_code=302)
+        n_tickets = len(await rsvc.my_tickets(db, me))
+    return render(request, "reporter/account.html", {"p": p, "csrf": csrf, "n_tickets": n_tickets})
 
 
 # ---- team pages -------------------------------------------------------------------------------------

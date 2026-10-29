@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Sign in{% endblock %}
+{% block content %}
+<div class="login" data-next="{{ next }}">
+<div class="tag"><span>{{ "Support" if site == "support" else "Reporters" }}</span></div>
+<h1>Sign in.</h1>
+<p class="sub">{% if site == "support" %}To ask a question and follow the answer.{% else %}To file a report, follow it, and be paid for it.{% endif %} Three ways, no passwords. One account can hold all three; add the others later on your account page.</p>
+
+<div class="grid">
+<div class="card">
+  <h3>GitHub</h3>
+  {% if github_sign_in %}
+  <p>{% if site == "bounty" %}If you have filed issues on <code>xeprotocol/xe</code> before, this picks them up under your reports.{% else %}The quickest way if you have an account.{% endif %}</p>
+  <a class="button" href="/v1/reporter/auth/github?next={{ next|urlencode }}">Continue with GitHub</a>
+  {% else %}
+  <p class="k">Not set up on this desk yet.</p>
+  {% endif %}
+</div>
+<div class="card">
+  <h3>Email</h3>
+  <p>A one-time link, good for fifteen minutes.</p>
+  <div class="row"><input type="email" id="email" placeholder="you@example.org" autocomplete="email" style="max-width:280px"><button class="mini" type="button" id="email-start">Send the link</button></div>
+  <div class="msg" id="email-msg" style="display:none"></div>
+  {% if not mail_sign_in %}<p class="k">Mail is not configured on this desk; the link is logged for the team.</p>{% endif %}
+</div>
+<div class="card">
+  <h3>XE key</h3>
+  <p>Sign a challenge with your key in the browser. The key never leaves this tab{% if site == "bounty" %}; the address it derives to is also where an award would go once you bind it{% endif %}.</p>
+  <div id="xe-box">
+    <input type="password" id="xe-seed" placeholder="64-hex seed" autocomplete="off" style="max-width:420px">
+    <div class="row" style="margin-top:8px">
+      <button class="mini" type="button" id="xe-login">Sign in with the key</button>
+      <button class="ghost mini" type="button" id="xe-generate">I don't have one: make a key</button>
+    </div>
+    <div id="xe-new" style="display:none; margin-top:12px">
+      <p class="k">Your new seed. Write it down now; it is shown once and the desk never sees it. Anyone with the seed controls the address.</p>
+      <p><code id="xe-new-seed" class="mono"></code></p>
+      <p class="k">Address: <code id="xe-new-addr" class="mono"></code></p>
+      <button class="mini" type="button" id="xe-use-new">I have saved it, sign in</button>
+    </div>
+    <div class="msg" id="xe-msg" style="display:none"></div>
+  </div>
+</div>
+</div>
+<p class="k" style="margin-top:24px">Signing in logs an entry (your account id, the method, the address you came from) in the desk's private log. Nothing about you is shown publicly except the name on your reports.</p>
+</div>
+{% endblock %}
+{% block scripts %}<script src="/static/signer.js"></script><script src="/static/reporter.js"></script>{% endblock %}

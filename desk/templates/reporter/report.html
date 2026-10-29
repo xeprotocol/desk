@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}{{ "Ask a question" if kind == "support" else "Report a bug" }}{% endblock %}
+{% block content %}
+{% set rc = copy.report %}
+<div class="tag"><span>{{ "Support" if kind == "support" else "Bounty" }}</span></div>
+<h1>{{ rc.ask_headline if kind == "support" else rc.headline }}</h1>
+<p class="sub">{{ rc.ask_sub if kind == "support" else rc.sub }}</p>
+
+<form id="report-form" class="report" data-kind="{{ kind }}" data-max-mb="{{ max_mb }}" data-max-files="{{ max_files }}" enctype="multipart/form-data">
+  <input type="hidden" name="kind" value="{{ kind }}">
+  <label for="title">{{ "Question in one line" if kind == "support" else "Title" }}</label>
+  <input type="text" id="title" name="title" required maxlength="200" placeholder="{{ rc.ask_title_hint if kind == 'support' else rc.title_hint }}">
+
+  {% if kind == "bounty" %}
+  <div class="grid" style="margin:16px 0">
+    <div>
+      <label for="area">Where</label>
+      <select id="area" name="area"><option value="">Not sure</option>{% for a, label in cfg.areas.items() %}<option value="{{ a }}">{{ label }}</option>{% endfor %}</select>
+    </div>
+    <div>
+      <label for="claimed_tier">How bad do you think it is</label>
+      <select id="claimed_tier" name="claimed_tier"><option value="">Not sure</option>{% for k in cfg.tier_order %}<option value="{{ k }}">{{ cfg.tier_label(k) }}</option>{% endfor %}</select>
+      <p class="k" style="margin-top:6px">{{ rc.tier_note }}</p>
+    </div>
+  </div>
+  {% else %}
+  <label for="area" style="margin-top:16px">About</label>
+  <select id="area" name="area"><option value="">Not sure</option>{% for a, label in cfg.areas.items() %}<option value="{{ a }}">{{ label }}</option>{% endfor %}</select>
+  {% endif %}
+
+  <label for="body" style="margin-top:16px">{{ "Details" if kind == "support" else "Report" }}</label>
+  <textarea id="body" name="body" required style="min-height:260px" placeholder="{{ rc.ask_body_hint if kind == 'support' else rc.body_hint }}"></textarea>
+  <p class="k">Markdown works.</p>
+
+  {% if kind == "bounty" %}
+  <div class="card" style="margin:16px 0">
+    <label class="row" style="gap:10px; cursor:pointer"><input type="checkbox" id="private" name="private" value="true" checked style="width:auto"> <b>Keep this private until it is fixed</b></label>
+    <p class="k" id="private-note">{{ rc.private_note }}</p>
+    {% if not vault_ok %}<p class="notice">{{ rc.no_vault }}</p>{% endif %}
+  </div>
+  {% endif %}
+
+  <label for="files" style="margin-top:16px">Attachments <span class="k">(up to {{ max_files }}, {{ max_mb }} MB each)</span></label>
+  <input type="file" id="files" name="files" multiple>
+  <p class="k">{{ rc.files_note }}</p>
+
+  <div class="row" style="margin-top:24px">
+    <button type="submit" id="report-submit">{{ "Ask" if kind == "support" else "File the report" }}</button>
+    <span class="k">{{ rc.ask_after if kind == "support" else rc.after }}</span>
+  </div>
+  <div class="msg" id="report-msg" style="display:none"></div>
+</form>
+{% if kind == "bounty" %}
+<p class="k" style="margin-top:28px">{{ rc.terms_line }} <a href="{{ prog.rules_url }}">{{ prog.rules_url }}</a></p>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="/static/reporter.js"></script>{% endblock %}

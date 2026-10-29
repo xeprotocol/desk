@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m with context %}
+{% block title %}{{ "My questions" if site == "support" else "My reports" }}{% endblock %}
+{% block content %}
+<div class="tag"><span>{{ me.display_name or me.github_login or me.email or "Reporter" }}</span></div>
+<h1>{{ "Your questions." if site == "support" else "Your reports." }}</h1>
+<p class="sub">{% if site == "support" %}Everything you have asked here, open or answered.{% else %}Everything you have filed, in the open and in private, with where each one stands. Private reports show here in full; to everyone else they are a title and a status.{% endif %}</p>
+
+<div class="row" style="margin-bottom:28px">
+  <a class="button" href="{{ '/ask' if site == 'support' else '/report' }}">{{ "Ask a question" if site == "support" else "Report a bug" }}</a>
+  <a href="/account">Account{% if site == "bounty" and not me.xe_address %} · set a payout address{% endif %}</a>
+</div>
+
+{% if not tickets %}
+<p class="k">Nothing yet.</p>
+{% else %}
+<table class="list">
+  <thead><tr><th>Id</th><th>Title</th><th>Status</th>{% if site == "bounty" %}<th>Tier</th><th>Award</th>{% endif %}<th>Filed</th></tr></thead>
+  <tbody>
+  {% for t in tickets %}
+  <tr>
+    <td class="mono"><a href="/t/{{ t.id }}">{{ t.id }}</a></td>
+    <td><a href="/t/{{ t.id }}">{{ t.title }}</a>{% if t.visibility == "private" %} <span class="pill private">private</span>{% endif %}</td>
+    <td>{{ m.status(t) }}</td>
+    {% if site == "bounty" %}
+    <td>{{ m.tier(t.assessed_tier) }}{% if not t.assessed_tier and t.claimed_tier %}<span class="k"> claimed {{ cfg.tier_label(t.claimed_tier) }}</span>{% endif %}</td>
+    <td class="k">{% if t.award_xe is not none %}{{ t.award_xe // 1000000 }} XE{% if t.award_approved_at %} · approved{% endif %}{% else %}—{% endif %}</td>
+    {% endif %}
+    <td class="k">{{ (t.source_created_at or t.created_at)|day }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% if other %}
+<p class="k" style="margin-top:20px">{{ other }} more on the {{ "bounty" if site == "support" else "support" }} side: <a href="{{ (bounty_url if site == 'support' else support_url) ~ '/my' }}">see them there</a>.</p>
+{% endif %}
+{% endblock %}

@@ -3,14 +3,17 @@ Every route refuses tokens through the authorisation layer. Mutations commit her
 
 from __future__ import annotations
 
+import csv
+import io
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 from ..auth import check_csrf
 from ..authz import can, require, require_field
 from ..services import proposals as psvc
+from ..services import reporters as rsvc
 from ..services import thread, users
 from ..services import tickets as tsvc
 from .deps import Ctx, Db, Who
@@ -332,3 +335,24 @@ async def edit_user(ctx: Ctx, db: Db, who: Who, request: Request, uid: int, body
         await users.set_active(ctx, db, who.principal.actor, u, body.active)
     await db.commit()
     return users.user_dict(u)
+
+
+@router.get("/payouts.csv")
+async def payouts_csv(ctx: Ctx, db: Db, who: Who, request: Request):
+    """Approved awards with a bound payout address, one row each, for the genesis allocation. Tickets
+    with an approved award and no address are listed too, with the address blank, so nobody is missed."""
+    _team(who, request)
+    require(who.principal, "export:payouts")
+    rows = await rsvc.payout_rows(db)
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(
+        ["ticket", "title", "tier", "award_xe", "approved_at", "reporter_id", "reporter", "xe_address"]
+    )
+    for r in rows:
+        w.writerow(r)
+    return Response(
+        content=out.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="payouts.csv"', "Cache-Control": "no-store"},
+    )

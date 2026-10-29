@@ -100,6 +100,11 @@
   {% else %}
     <p class="k">No body{% if t.source == "github" %}; see the issue on GitHub{% endif %}.</p>
   {% endif %}
+  {% if attachments %}
+  <h3 style="margin-top:28px">Attachments</h3>
+  <table class="toks">{% for a in attachments %}<tr><td><a href="/v1/reporter/tickets/{{ t.id }}/attachments/{{ a.n }}">{{ a.filename }}</a></td><td class="k">{{ (a.size / 1024)|round|int }} KB{% if a.sealed %} · sealed{% endif %}</td><td class="k mono">{{ a.sha256[:16] }}…</td></tr>{% endfor %}</table>
+  <p class="k">Downloads are served as files, never rendered. Open them somewhere safe.</p>
+  {% endif %}
 
   <h3 style="margin-top:36px">Thread</h3>
   {% if not messages %}<p class="k">Nothing public yet.</p>{% endif %}
@@ -121,6 +126,21 @@
     </div>
     <div class="msg" id="reply-msg" style="display:none"></div>
     {% for r in replies if r.mirror in ("queued", "failed") %}<p class="k">Reply {{ r.id }} <span class="pill {{ r.mirror }}">{{ r.mirror }}</span> {{ r.mirror_error }}</p>{% endfor %}
+  </div>
+  {% elif mine %}
+  <div class="compose reporter" style="margin-top:28px" data-ticket="{{ t.id }}">
+    <h3>Add to your {{ "question" if t.kind == "support" else "report" }}</h3>
+    {% if t.status in ("closed", "paid") %}
+    <p class="k">This one is {{ copy.labels.get(t.status, t.status) }}{% if t.closed_reason %} ({{ t.closed_reason }}){% endif %}. File a new one if there is more.</p>
+    {% else %}
+    <textarea id="reporter-reply" placeholder="{% if t.visibility == 'private' %}Sealed like the report; the team sees it, nobody else does.{% else %}Public, like the rest of the thread.{% endif %}"></textarea>
+    <div class="row">
+      <span class="k">{% if t.status == "needs-info" %}The team asked for more; replying moves this back into triage.{% elif t.visibility == "private" %}Private, team only.{% else %}Public.{% endif %}</span>
+      <button id="reporter-send" type="button">Send</button>
+      {% if can_withdraw %}<button class="ghost" id="reporter-withdraw" type="button">Withdraw</button>{% endif %}
+    </div>
+    <div class="msg" id="reporter-msg" style="display:none"></div>
+    {% endif %}
   </div>
   {% endif %}
 </section>
@@ -164,3 +184,4 @@
 {% endif %}
 </div>
 {% endblock %}
+{% block scripts %}{% if mine %}<script src="/static/reporter.js"></script>{% endif %}{% endblock %}

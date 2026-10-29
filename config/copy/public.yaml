@@ -27,8 +27,8 @@ support:
   footer_line: Community support for the agent-native network, run in the open.
   crosslink: Found a security bug? That is the bounty, at {bounty_url}. Report it there, not here.
   ask: >-
-    Ask on GitHub for now; a web form follows in the next release. Questions arriving by email, Discord
-    or Telegram become tickets here.
+    Sign in and ask at /ask. Questions arriving by GitHub, email, Discord or Telegram become tickets
+    here too.
 
 labels:
   tickets: Tickets
@@ -55,6 +55,48 @@ labels:
   disclosed: Disclosed
   awarded: Awarded
   paid: Paid
+  signin: Sign in
+  report: Report a bug
+  ask: Ask a question
+  my_reports: My reports
+  my_questions: My questions
+
+# The filing form and the reporter's account page.
+report:
+  headline: Report a bug.
+  sub: >-
+    Tell us what breaks, where, and how to make it happen again. Private reports are sealed on arrival
+    and read by the team alone until a fix ships; then the report is disclosed and the thread opens.
+  title_hint: What breaks, in one line
+  body_hint: >-
+    What you did, what happened, what you expected. Versions, commands, transactions, logs. A proof of
+    concept if you have one; the clearer the steps, the quicker the triage.
+  tier_note: >-
+    Your estimate. The team assesses the tier on acceptance and that is the one an award follows.
+  private_note: >-
+    On for anything that could be used against the network before it is fixed. Critical and severe
+    reports are always private whatever you choose. Off is fine for UI bugs, typos and documentation.
+  no_vault: >-
+    The desk's vault is not open right now, so private reports cannot be sealed. Try again shortly, or
+    file in public if the report is safe to read.
+  files_note: >-
+    Logs, screenshots, a proof of concept. Attachments to a private report are sealed with it. Nothing is
+    executed or rendered on the desk; the team downloads and opens files in a sandbox.
+  after: You get an id and a page to follow it on. The team reads everything within a day.
+  terms_line: Filing accepts the programme rules at
+  ask_headline: Ask a question.
+  ask_sub: >-
+    About running a node, the wallet, the faucet, the testnet or the network. The answer is public and
+    stays, so the next person finds it too. Do not put secrets or seeds in a question.
+  ask_title_hint: What you want to know, in one line
+  ask_body_hint: What you tried, what you saw, which version you are on.
+  ask_after: You get an id and a page to follow it on. Answers come from the team and from the community.
+  payout_none: >-
+    No payout address yet. An accepted report cannot be paid until one is bound, and binding means
+    proving you hold the key: a signature from that key, made here in your browser.
+  payout_how: >-
+    Paste the seed of the address you want paid, or make a new key here. The seed stays in this tab and
+    is cleared the moment the signature is made; only the address and the signature reach the desk.
 
 notices:
   private_ticket: >-

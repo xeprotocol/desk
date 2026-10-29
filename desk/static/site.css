@@ -226,3 +226,19 @@ input[type=email], input[type=number] { width:100%; padding:11px 12px; border:1p
 input[type=email]:focus, input[type=number]:focus { outline:none; border-color:var(--ink); }
 .toks td code { font-size:12px; }
 .kbd { font-family:var(--mono); font-size:12px; border:1px solid var(--line-thin); padding:1px 5px; color:var(--mute); }
+
+/* reporter pages */
+a.button { display:inline-flex; align-items:center; height:44px; padding:0 24px; background:var(--brand); color:#fff; font-weight:500; font-size:14px; letter-spacing:.14px; }
+a.button:hover { background:var(--brand-high); text-decoration:none; }
+a.button.mini { height:32px; padding:0 14px; font-size:13px; }
+.report label { display:block; margin:0 0 6px; font-weight:500; }
+.report .grid > div label { margin-top:0; }
+.report input[type=file] { display:block; width:100%; padding:10px 0; font:inherit; font-size:14px; color:var(--fg-2); }
+.report input[type=checkbox] { width:auto; margin:0; }
+input[type=password] { width:100%; padding:11px 12px; border:1px solid var(--line-thin); background:#fff; color:var(--fg); font:inherit; font-size:15px; font-family:var(--mono); }
+input[type=password]:focus { outline:none; border-color:var(--ink); }
+.login .grid { display:block; } .login .grid .card { margin-bottom:8px; } .login .card button { width:auto; margin-top:0; }
+.login { max-width:720px; }
+.compose.reporter textarea { min-height:120px; }
+code.mono { font-family:var(--mono); font-size:13px; word-break:break-all; }
+.pill.private { border-color:var(--ink); color:var(--ink); }

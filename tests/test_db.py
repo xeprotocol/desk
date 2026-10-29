@@ -5,7 +5,9 @@ DESK_TEST_DATABASE_URL=postgresql+asyncpg://desk:pw@db:5432/desk_test (a scratch
 Run on the VPS:  docker compose exec -e DESK_TEST_DATABASE_URL=... app pytest tests/test_db.py -q
 """
 
+import hashlib
 import os
+import time
 from collections import Counter
 from pathlib import Path
 
@@ -14,15 +16,19 @@ from fastapi import HTTPException
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from desk import authz
+from desk import auth, authz
+from desk.auth import SignedRequest, signing_target, verify_signed
+from desk.canonical import DOMAIN_LOGIN, DOMAIN_PAYOUT
 from desk.config import load_config
 from desk.context import Context, NodeIdentity
 from desk.db import Base
 from desk.log import EventLog
 from desk.models import AgentToken, Note, Proposal, Reply, Ticket, User
 from desk.services import proposals as psvc
+from desk.services import reporters as rsvc
 from desk.services import thread, triage, users
 from desk.services import tickets as tsvc
+from desk.services.tickets import utcnow
 from desk.settings import Settings
 from desk.signer import Signer
 from desk.vault import Vault
@@ -278,3 +284,134 @@ async def test_triage_import_of_the_real_doc(ctx, db, triage_text):
     assert public_md.count("\n| ") == md.count("\n| ") - 3
     pending = (await db.execute(select(Proposal))).scalars().all()
     assert pending == [], "the import writes facts, not proposals"
+
+
+# ---- reporters -------------------------------------------------------------------------------------
+
+
+class _Upload:
+    """Just enough of starlette's UploadFile for the service."""
+
+    def __init__(self, name: str, data: bytes, content_type: str = "text/plain"):
+        self.filename, self._data, self.content_type = name, data, content_type
+
+    async def read(self, n: int = -1) -> bytes:
+        d, self._data = self._data[:n] if n >= 0 else self._data, b""
+        return d
+
+
+def _signed(kp: KeyPair, domain: bytes, payload: dict) -> SignedRequest:
+    ts = time.time_ns()
+    sig = kp.sign_hex(signing_target(domain, payload, ts))
+    return SignedRequest(payload=payload, timestamp=ts, pub_key=kp.pub_key_hex, signature=sig)
+
+
+async def test_reporter_files_private_report_with_sealed_attachment(ctx, db, tmp_path):
+    ctx.settings.blob_dir = tmp_path
+    r = await rsvc.from_email(ctx, db, "alice@example.org", link_to=None)
+    me = authz.Principal(kind="reporter", reporter_id=r.id)
+    f = rsvc.Filing(
+        kind="bounty",
+        title="Escrow release double-counts",
+        body="Steps: open an escrow, release twice within one block. Expected: one release. Got: two.",
+        area="consensus",
+        claimed_tier="high",
+        private=True,
+        files=[_Upload("poc.txt", b"the exploit bytes " * 10)],
+    )
+    t = await rsvc.file_ticket(ctx, db, r, f)
+    await db.commit()
+    assert t.visibility == "private" and t.reporter_id == r.id and t.claimed_tier == "high"
+    assert tsvc.body_for(ctx, t).startswith("Steps")
+    atts = await rsvc.attachments_for(db, t)
+    assert len(atts) == 1 and atts[0].sealed
+    on_disk = (tmp_path / atts[0].blob_path).read_bytes()
+    assert b"exploit" not in on_disk
+    a, data = await rsvc.open_attachment(ctx, db, me, t, 1)
+    assert data.startswith(b"the exploit") and a.sha256 == hashlib.sha256(data).hexdigest()
+    # the reporter sees their own private ticket; anonymous and another reporter do not
+    assert (await tsvc.get_for(db, me, t.id)).id == t.id
+    other = authz.Principal(kind="reporter", reporter_id=r.id + 1)
+    for p in (authz.ANON, other):
+        with pytest.raises(HTTPException) as e:
+            await tsvc.get_for(db, p, t.id)
+        assert e.value.status_code == 404
+    assert not rsvc.owns(None, t)
+
+
+async def test_critical_claim_forces_private(ctx, db):
+    r = await rsvc.from_email(ctx, db, "bob@example.org", link_to=None)
+    f = rsvc.Filing(
+        kind="bounty",
+        title="Unauthorized mint via vault",
+        body="A long enough description of how the mint can be triggered without authorisation here.",
+        claimed_tier="critical",
+        private=False,
+    )
+    t = await rsvc.file_ticket(ctx, db, r, f)
+    assert t.visibility == "private"
+
+
+async def test_reporter_withdraws_and_replies(ctx, db):
+    r = await rsvc.from_email(ctx, db, "carol@example.org", link_to=None)
+    team = await _team(ctx, db)
+    body = "What I did, what happened, what I expected; enough words to pass the body check."
+    f = rsvc.Filing(kind="bounty", title="Explorer shows wrong tip", body=body)
+    t = await rsvc.file_ticket(ctx, db, r, f)
+    await tsvc.set_status(ctx, db, team, t, "triaging")
+    await tsvc.set_status(ctx, db, team, t, "needs-info")
+    m = await rsvc.reply(ctx, db, r, t, "Here is the version: 0.5.1")
+    assert m is not None and t.status == "triaging"
+    await rsvc.withdraw(ctx, db, r, t, "my mistake")
+    assert t.status == "closed" and t.closed_reason == "withdrawn"
+    with pytest.raises(HTTPException) as e:
+        await rsvc.withdraw(ctx, db, r, t)
+    assert e.value.status_code == 409
+    stranger = await rsvc.from_email(ctx, db, "dave@example.org", link_to=None)
+    with pytest.raises(HTTPException) as e:
+        await rsvc.reply(ctx, db, stranger, t, "mine now")
+    assert e.value.status_code == 403
+
+
+async def test_payout_binding_needs_matching_key(ctx, db):
+    r = await rsvc.from_email(ctx, db, "erin@example.org", link_to=None)
+    body = "A public report with enough body to be accepted by the filing checks, no secrets inside."
+    f = rsvc.Filing(kind="bounty", title="Typo on the faucet page", body=body)
+    t = await rsvc.file_ticket(ctx, db, r, f)
+    kp, wrong = KeyPair.generate(), KeyPair.generate()
+    v = await verify_signed(db, _signed(kp, DOMAIN_PAYOUT, {"address": wrong.address}), DOMAIN_PAYOUT)
+    with pytest.raises(HTTPException) as e:
+        await rsvc.bind_payout(ctx, db, r, v)
+    assert e.value.status_code == 400
+    v = await verify_signed(db, _signed(kp, DOMAIN_PAYOUT, {"address": kp.address}), DOMAIN_PAYOUT)
+    out = await rsvc.bind_payout(ctx, db, r, v)
+    assert out == {"address": kp.address, "tickets_updated": 1}
+    assert r.xe_address == kp.address and t.payout_address == kp.address
+    # the payout export lists approved awards with the bound address
+    await tsvc.set_status(ctx, db, await _team(ctx, db), t, "triaging")
+    t.award_xe, t.award_approved_at = 5_000_000, utcnow()
+    await db.flush()
+    rows = await rsvc.payout_rows(db)
+    assert rows and rows[0][0] == t.id and rows[0][3] == 5 and rows[0][-1] == kp.address
+
+
+async def test_xe_login_and_identity_merge(ctx, db):
+    kp = KeyPair.generate()
+    v = await verify_signed(db, _signed(kp, DOMAIN_LOGIN, {"host": "bounty.test"}), DOMAIN_LOGIN)
+    a = await rsvc.from_xe(ctx, db, v, link_to=None)
+    assert kp.address in a.xe_login_addresses
+    # an email account exists separately, with a ticket; linking email onto the key account merges them
+    b = await rsvc.from_email(ctx, db, "frank@example.org", link_to=None)
+    body = "Filed under the email identity before the two accounts were joined together by the reporter."
+    f = rsvc.Filing(kind="support", title="Which port does a node use", body=body)
+    t = await rsvc.file_ticket(ctx, db, b, f)
+    merged = await rsvc.from_email(ctx, db, "frank@example.org", link_to=a)
+    assert merged.id == a.id and merged.email == "frank@example.org"
+    await db.refresh(t)
+    assert t.reporter_id == a.id
+    assert (await rsvc.get(db, b.id)).email == ""  # emptied, kept so old log entries still resolve
+    # link tokens: one use, then gone
+    raw = await auth.create_reporter_link(db, "frank@example.org", a.id, "/my")
+    link = await auth.consume_reporter_link(db, raw)
+    assert link is not None and link.reporter_id == a.id and link.next_path == "/my"
+    assert await auth.consume_reporter_link(db, raw) is None

@@ -215,6 +215,7 @@ def build_llms_txt(
                 link("/live", "Live", "the log as it happens; `/v1/events/stream` is the stream itself"),
                 "",
                 "## Tickets",
+                link("/ask", "Ask a question", "sign in and ask; the answer is public and stays"),
                 link(
                     "/support/XS-0001.md",
                     "A ticket",
@@ -239,6 +240,7 @@ def build_llms_txt(
             how,
             "",
             "## Start here",
+            link("/report", "Report a bug", "sign in (GitHub, email link, or XE key) and file; private by default"),
             link("/index.md", "Open tickets", "every public report, most severe first"),
             link(
                 "/scope.md",
@@ -257,7 +259,7 @@ def build_llms_txt(
             *common_api,
             "## Optional",
             "- [xe.network](https://xe.network): the network this serves",
-            "- [xeprotocol/xe](https://github.com/xeprotocol/xe/issues): where public reports are filed",
+            "- [xeprotocol/xe](https://github.com/xeprotocol/xe/issues): public reports filed there are read too",
             "",
         ]
     )

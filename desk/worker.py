@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import delete, select
 
-from .auth import purge_seen_signatures
+from .auth import purge_reporter_auth, purge_seen_signatures
 from .context import Context, build_context, set_context
 from .db import session
 from .log import EventLog
@@ -164,6 +164,7 @@ class Worker:
             purged = await purge_seen_signatures(db)
             ch = await db.execute(delete(Challenge).where(Challenge.expires_at < now))
             se = await db.execute(delete(Session).where(Session.expires_at < now))
+            rp = await purge_reporter_auth(db)
             old = time.time_ns() - 90 * 86400 * NS
             hc = await db.execute(delete(HealthCheck).where(HealthCheck.ts < old))
             await mark_run(
@@ -173,6 +174,7 @@ class Worker:
                     "signatures": purged,
                     "challenges": ch.rowcount,
                     "sessions": se.rowcount,
+                    "reporter_auth": rp,
                     "health_rows": hc.rowcount,
                 },
             )

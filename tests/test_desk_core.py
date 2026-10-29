@@ -306,3 +306,31 @@ def test_webhook_hmac():
     assert not gh.verify_webhook("s3cret", body + b" ", sig)
     assert not gh.verify_webhook("", body, sig)
     assert not gh.verify_webhook("s3cret", body, "sha1=abc")
+
+
+# ---- reporters (pure) ---------------------------------------------------------------------------------
+
+
+def test_filing_privacy_rule():
+    from desk.services import reporters as rsvc
+
+    assert rsvc.must_be_private(rsvc.Filing(kind="bounty", private=True))
+    assert rsvc.must_be_private(rsvc.Filing(kind="bounty", claimed_tier="critical", private=False))
+    assert rsvc.must_be_private(rsvc.Filing(kind="bounty", claimed_tier="severe", private=False))
+    assert not rsvc.must_be_private(rsvc.Filing(kind="bounty", claimed_tier="minor", private=False))
+    assert not rsvc.must_be_private(rsvc.Filing(kind="support", claimed_tier="critical", private=True))
+
+
+def test_email_cleaning_and_address_checks():
+    from desk.services import reporters as rsvc
+
+    assert rsvc.clean_email("  Alice@Example.ORG ") == "alice@example.org"
+    with pytest.raises(HTTPException):
+        rsvc.clean_email("nope")
+    kp = KeyPair.generate()
+    assert rsvc.check_address(kp.address.upper()) == kp.address
+    assert rsvc.address_of(kp.pub_key_hex) == kp.address
+    with pytest.raises(HTTPException):
+        rsvc.check_address("abc")
+    with pytest.raises(HTTPException):
+        rsvc.address_of("zz")

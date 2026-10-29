@@ -6,8 +6,9 @@ Three ways in, none of them a password:
             random cookie whose hash lives in `sessions`, so it can be revoked and a database read
             never yields a usable cookie. First sign-in is a one-time invite link.
   agent     a bearer token, `desk_...`, bound to a human owner, a model id, scopes and an expiry.
-  reporter  (release 2) GitHub OAuth, an email magic link, or an XE key signature in the harness's
-            signed-request shape under a desk domain string. The verifier is here; the routes are not yet.
+  reporter  GitHub OAuth, an email link, or an XE key signature in the harness's signed-request shape
+            under `xe/desk/login/v1`. Its own cookie and table (`reporter_sessions`), so a reporter session
+            can never be read as a team one. The routes are in api/reporter.py.
 
 Team writes from the browser carry the session's CSRF token in `X-Desk-CSRF`; cookies are SameSite=Lax.
 """
@@ -38,12 +39,25 @@ from xe.keys import KeyError_, derive_address, verify_hex_signature
 
 from .authz import Principal
 from .canonical import digest
-from .models import AGENT_SCOPES, AgentToken, Challenge, Invite, Passkey, SeenSignature, Session, User
+from .models import (
+    AGENT_SCOPES,
+    AgentToken,
+    Challenge,
+    Invite,
+    Passkey,
+    Reporter,
+    ReporterLink,
+    ReporterSession,
+    SeenSignature,
+    Session,
+    User,
+)
 from .settings import Settings
 
 log = logging.getLogger("desk.auth")
 
 SESSION_COOKIE = "desk_session"
+REPORTER_COOKIE = "desk_reporter"
 SESSION_TTL = timedelta(days=14)
 INVITE_TTL = timedelta(days=7)
 MAGIC_TTL = timedelta(minutes=15)
@@ -102,20 +116,100 @@ async def end_session(db: AsyncSession, request: Request) -> None:
         await db.execute(delete(Session).where(Session.token_hash == hash_secret(raw)))
 
 
-def set_session_cookie(response: Response, raw: str, settings: Settings) -> None:
+def set_session_cookie(response: Response, raw: str, settings: Settings, name: str = SESSION_COOKIE) -> None:
     response.set_cookie(
-        SESSION_COOKIE,
+        name,
         raw,
         max_age=int(SESSION_TTL.total_seconds()),
         httponly=True,
         samesite="lax",
         secure=settings.scheme == "https",
         path="/",
+        domain=settings.cookie_domain,
     )
 
 
-def clear_session_cookie(response: Response) -> None:
-    response.delete_cookie(SESSION_COOKIE, path="/")
+def clear_session_cookie(
+    response: Response, settings: Settings | None = None, name: str = SESSION_COOKIE
+) -> None:
+    response.delete_cookie(name, path="/", domain=settings.cookie_domain if settings else None)
+
+
+# ---- reporter sessions and links ----------------------------------------------------------------------
+
+
+async def create_reporter_session(
+    db: AsyncSession, r: Reporter, how: str, request: Request | None = None
+) -> tuple[ReporterSession, str]:
+    raw = new_secret()
+    s = ReporterSession(
+        token_hash=hash_secret(raw),
+        reporter_id=r.id,
+        csrf=new_secret(24),
+        how=how,
+        expires_at=now() + SESSION_TTL,
+        ip=client_ip(request) if request else "",
+    )
+    db.add(s)
+    r.last_login_at = now()
+    if r.claimed_at is None:
+        r.claimed_at = now()
+    await db.flush()
+    return s, raw
+
+
+async def reporter_session_from_request(
+    db: AsyncSession, request: Request
+) -> tuple[ReporterSession, Reporter] | None:
+    raw = request.cookies.get(REPORTER_COOKIE)
+    if not raw:
+        return None
+    s = (
+        await db.execute(select(ReporterSession).where(ReporterSession.token_hash == hash_secret(raw)))
+    ).scalar_one_or_none()
+    if s is None or s.expires_at < now():
+        return None
+    r = (await db.execute(select(Reporter).where(Reporter.id == s.reporter_id))).scalar_one_or_none()
+    return (s, r) if r else None
+
+
+async def end_reporter_session(db: AsyncSession, request: Request) -> None:
+    raw = request.cookies.get(REPORTER_COOKIE)
+    if raw:
+        await db.execute(delete(ReporterSession).where(ReporterSession.token_hash == hash_secret(raw)))
+
+
+async def create_reporter_link(
+    db: AsyncSession, email: str, reporter_id: int | None, next_path: str = "/my"
+) -> str:
+    raw = new_secret()
+    db.add(
+        ReporterLink(
+            token_hash=hash_secret(raw),
+            email=email.lower(),
+            reporter_id=reporter_id,
+            next_path=next_path[:256],
+            expires_at=now() + MAGIC_TTL,
+        )
+    )
+    await db.flush()
+    return raw
+
+
+async def consume_reporter_link(db: AsyncSession, raw: str) -> ReporterLink | None:
+    link = (
+        await db.execute(select(ReporterLink).where(ReporterLink.token_hash == hash_secret(raw)))
+    ).scalar_one_or_none()
+    if link is None or link.used_at is not None or link.expires_at < now():
+        return None
+    link.used_at = now()
+    return link
+
+
+async def purge_reporter_auth(db: AsyncSession) -> int:
+    a = await db.execute(delete(ReporterSession).where(ReporterSession.expires_at < now()))
+    b = await db.execute(delete(ReporterLink).where(ReporterLink.expires_at < now() - timedelta(days=1)))
+    return int(a.rowcount or 0) + int(b.rowcount or 0)
 
 
 def client_ip(request: Request | None) -> str:
@@ -126,7 +220,7 @@ def client_ip(request: Request | None) -> str:
     return request.client.host or ""
 
 
-def check_csrf(request: Request, session: Session) -> None:
+def check_csrf(request: Request, session: Session | ReporterSession) -> None:
     sent = request.headers.get("x-desk-csrf", "")
     if not sent or not hmac.compare_digest(sent, session.csrf):
         raise HTTPException(403, "missing or stale CSRF token; reload the page")
@@ -371,10 +465,21 @@ async def token_from_bearer(db: AsyncSession, raw: str) -> AgentToken | None:
 class Auth:
     principal: Principal
     session: Session | None = None
+    reporter_session: ReporterSession | None = None
+    reporter: Reporter | None = None
+
+    @property
+    def csrf(self) -> str:
+        if self.session:
+            return self.session.csrf
+        if self.reporter_session:
+            return self.reporter_session.csrf
+        return ""
 
 
 async def resolve(db: AsyncSession, request: Request) -> Auth:
-    """Bearer token first (agents), then the session cookie (team). Anonymous otherwise."""
+    """Bearer token first (agents), then the team cookie, then the reporter cookie. Anonymous otherwise.
+    A browser holding both cookies is the team member: the team view shows more and never less."""
     authz = request.headers.get("authorization", "")
     if authz.lower().startswith("bearer "):
         t = await token_from_bearer(db, authz[7:].strip())
@@ -388,6 +493,10 @@ async def resolve(db: AsyncSession, request: Request) -> Auth:
     if got:
         s, u = got
         return Auth(Principal(kind="user", user=u, roles=set(u.roles)), session=s)
+    rep = await reporter_session_from_request(db, request)
+    if rep:
+        rs, r = rep
+        return Auth(Principal(kind="reporter", reporter_id=r.id), reporter_session=rs, reporter=r)
     return Auth(Principal())
 
 

@@ -4,7 +4,7 @@ The ticket desk for the XE bug bounty and support: reports come in from GitHub (
 
 The design is [`docs/DESK_BRIEF.md`](docs/DESK_BRIEF.md). The seed data is [`docs/BOUNTY_TRIAGE.md`](docs/BOUNTY_TRIAGE.md), which the desk imports once and can export again at `/v1/export/triage.md`. Deployment is [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
-## What it does (release 1)
+## What it does (releases 1 and 2)
 
 - **Tickets.** `XE-0001` bounty, `XS-0001` support. Facts exactly as the triage columns: verdict, claimed and assessed tier, area, gate (before / decide / later), effort band, duplicate-of, internal ticket, patches. Status `new → triaging → needs-info ⇄ → accepted → fixing → patched → disclosed → awarded → paid`, or `closed` with a reason.
 - **An agent recommends; a human decides and speaks.** Agent tokens can read, write internal notes, propose changes to facts and draft replies, and link PRs. No token scope sends a reply, sets a status or award, or reads a payout address. Adopting a proposal writes the field through the same checks a human edit uses; adopting a reply draft only fills the editor.
@@ -13,6 +13,8 @@ The design is [`docs/DESK_BRIEF.md`](docs/DESK_BRIEF.md). The seed data is [`doc
 - **The vault.** Private bodies are sealed with a SecretBox key from the keyfile; the desk refuses to store or open private content when the key is absent; every opening is a log event.
 - **The log.** `events` is append-only, each entry hashing the previous and signed by the `log` key. `/v1/log/verify` replays it. Private-ticket events are in the chain but not served publicly. A weekly head snapshot is offered for anchoring on the state chain.
 - **Team sign-in.** Passkeys (WebAuthn, RP id `xe.network` so one key works on both hosts), TOTP as the fallback, one-time invite links. No passwords.
+- **Two doors.** `bounty.xe.network` for researchers (reports, scope, leaderboard, `/report`); `support.xe.network` for people who run nodes and hold XE (questions, `/ask`). Same desk, same log, distinct menus and copy; neither lists the other beyond a footer link.
+- **Reporters.** Sign in with GitHub, an email link, or an XE key signature (`xe/desk/login/v1`); one account holds all three. File with attachments; Critical and Severe reports are private whatever the box says, sealed on arrival with their files. `/my` follows each report; reporters reply and withdraw from the ticket page. A payout address is bound only by a signature from its key (`xe/desk/payout/v1`); the key can be made in the browser and never leaves it. Treasurers export `payouts.csv`.
 - **Reading surfaces.** Server-rendered pages, every one also markdown (`/path.md` or `Accept: text/markdown`), `/llms.txt`, JSON under `/v1`, SSE at `/v1/events/stream`.
 
 ## Layout
