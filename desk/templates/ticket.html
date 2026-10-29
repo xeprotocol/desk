@@ -94,6 +94,7 @@
   <p class="k"><a href="/log?ref={{ t.id }}">Full history</a> · <a href="/v1/tickets/{{ t.id }}">JSON</a> · <a href="{{ path|md_path }}">markdown</a></p>
 </aside>
 
+<div class="main">
 <section class="thread">
   <h3>{{ "Question" if t.kind == "support" else "Report" }}</h3>
   {% if body is none %}
@@ -118,43 +119,17 @@
   </div>
   {% endfor %}
 
-  {% if team %}
-  <div class="compose" style="margin-top:28px">
-    <h3>{{ "Answer in public" if t.kind == "support" else "Reply in public" }}</h3>
-    <div class="templates" style="margin-bottom:8px">{% for name in cfg.reply_templates if (name.startswith("support_") if t.kind == "support" else not name.startswith("support_")) %}<button type="button" data-template="{{ name }}">{{ name.replace('support_', '').replace('_', ' ') }}</button>{% endfor %}</div>
-    <textarea id="reply-body" placeholder="Written by a person, mirrored to the source channel. Nothing here promises an award."></textarea>
-    <div class="row">
-      <span class="k">{% if t.source == "github" %}Mirrors to {{ t.source_repo }}#{{ t.source_ref }} as a comment.{% elif t.source == "discord" %}Posted into the Discord thread by the bot, under your name.{% else %}Stays on the desk; the reporter sees it on this page and under their reports.{% endif %}</span>
-      <button id="send-reply" type="button">Send reply</button>
-    </div>
-    <div class="msg" id="reply-msg" style="display:none"></div>
-    {% for r in replies if r.mirror in ("queued", "failed") %}<p class="k">Reply {{ r.id }} <span class="pill {{ r.mirror }}">{{ r.mirror }}</span> {{ r.mirror_error }}</p>{% endfor %}
-  </div>
-  {% elif mine %}
-  <div class="compose reporter" style="margin-top:28px" data-ticket="{{ t.id }}">
-    <h3>Add to your {{ "question" if t.kind == "support" else "report" }}</h3>
-    {% if t.status in ("closed", "paid") %}
-    <p class="k">This one is {{ copy.labels.get(t.status, t.status) }}{% if t.closed_reason %} ({{ t.closed_reason }}){% endif %}. File a new one if there is more.</p>
-    {% else %}
-    <textarea id="reporter-reply" placeholder="{% if t.visibility == 'private' %}Sealed like the report; the team sees it, nobody else does.{% else %}Public, like the rest of the thread.{% endif %}"></textarea>
-    <div class="row">
-      <span class="k">{% if t.status == "needs-info" %}The team asked for more; replying moves this back into triage.{% elif t.visibility == "private" %}Private, team only.{% else %}Public.{% endif %}</span>
-      <button id="reporter-send" type="button">Send</button>
-      {% if can_withdraw %}<button class="ghost" id="reporter-withdraw" type="button">Withdraw</button>{% endif %}
-    </div>
-    <div class="msg" id="reporter-msg" style="display:none"></div>
-    {% endif %}
-  </div>
-  {% endif %}
 </section>
 
 {% if team or p.is_agent %}
-<aside class="side">
-  <section>
+<section class="desk" id="desk">
+  <div class="desk-head"><h3>Desk</h3><span class="k">Internal: proposals and notes never leave the desk.</span></div>
+  <section class="proposals">
     <h3>Proposals <span class="k">{{ proposals|selectattr("state", "equalto", "pending")|list|length }} pending</span></h3>
     {% if not proposals %}<p class="k">None. Agents propose; you adopt or reject.</p>{% endif %}
     {% set pend = proposals|selectattr("state", "equalto", "pending")|list %}
     {% if team and pend|length > 1 %}<div class="row" style="margin-bottom:10px"><button class="ghost mini" id="adopt-all" type="button">Adopt all {{ pend|length }}</button></div>{% endif %}
+    <div class="cards">
     {% for pr in proposals %}
     <div class="proposal {{ pr.state }}" data-proposal="{{ pr.id }}" data-field="{{ pr.field }}">
       <div class="f">{{ pr.field.replace('_', ' ') }}{% if pr.field == "assessed_tier" and not can_tier %} <span class="pill private">tier role</span>{% endif %}</div>
@@ -169,22 +144,53 @@
       {% endif %}
     </div>
     {% endfor %}
+    </div>
   </section>
 
-  <section>
+  <section class="notes">
     <h3>Internal notes</h3>
     {% if not notes %}<p class="k">None yet.</p>{% endif %}
     {% for n in notes %}
-    <div class="note"><div class="by"><b>{{ n.author_name or n.author }}</b> · {{ n.created_at|dt }}</div>{{ n.body }}</div>
+    <div class="note"><div class="by"><b>{{ n.author_name or n.author }}</b><span>{{ n.created_at|dt }}</span></div><div class="body md">{{ n.body|md_note }}</div></div>
     {% endfor %}
     <div class="compose" style="margin-top:14px">
-      <textarea id="note-body" placeholder="Internal. Never leaves the desk." style="min-height:80px"></textarea>
+      <textarea id="note-body" placeholder="Internal. Never leaves the desk. Markdown is fine."></textarea>
       <div class="row"><span></span><button class="ghost mini" id="add-note" type="button">Add note</button></div>
       <div class="msg" id="note-msg" style="display:none"></div>
     </div>
   </section>
-</aside>
+</section>
 {% endif %}
+
+{% if team %}
+  <div class="compose" style="margin-top:28px">
+    <h3>{{ "Answer in public" if t.kind == "support" else "Reply in public" }}</h3>
+    <div class="templates" style="margin-bottom:8px">{% for name in cfg.reply_templates if (name.startswith("support_") if t.kind == "support" else not name.startswith("support_")) %}<button type="button" data-template="{{ name }}">{{ name.replace('support_', '').replace('_', ' ') }}</button>{% endfor %}</div>
+    <textarea id="reply-body" placeholder="Written by a person, mirrored to the source channel. Nothing here promises an award."></textarea>
+    <div class="row">
+      <span class="k">{% if t.source == "github" %}Mirrors to {{ t.source_repo }}#{{ t.source_ref }} as a comment.{% elif t.source == "discord" %}Posted into the Discord thread by the bot, under your name.{% else %}Stays on the desk; the reporter sees it on this page and under their reports.{% endif %}</span>
+      <button id="send-reply" type="button">Send reply</button>
+    </div>
+    <div class="msg" id="reply-msg" style="display:none"></div>
+    {% for r in replies if r.mirror in ("queued", "failed") %}<p class="k">Reply {{ r.id }} <span class="pill {{ r.mirror }}">{{ r.mirror }}</span> {{ r.mirror_error }}</p>{% endfor %}
+  </div>
+{% elif mine %}
+  <div class="compose reporter" style="margin-top:28px" data-ticket="{{ t.id }}">
+    <h3>Add to your {{ "question" if t.kind == "support" else "report" }}</h3>
+    {% if t.status in ("closed", "paid") %}
+    <p class="k">This one is {{ copy.labels.get(t.status, t.status) }}{% if t.closed_reason %} ({{ t.closed_reason }}){% endif %}. File a new one if there is more.</p>
+    {% else %}
+    <textarea id="reporter-reply" placeholder="{% if t.visibility == 'private' %}Sealed like the report; the team sees it, nobody else does.{% else %}Public, like the rest of the thread.{% endif %}"></textarea>
+    <div class="row">
+      <span class="k">{% if t.status == "needs-info" %}The team asked for more; replying moves this back into triage.{% elif t.visibility == "private" %}Private, team only.{% else %}Public.{% endif %}</span>
+      <button id="reporter-send" type="button">Send</button>
+      {% if can_withdraw %}<button class="ghost" id="reporter-withdraw" type="button">Withdraw</button>{% endif %}
+    </div>
+    <div class="msg" id="reporter-msg" style="display:none"></div>
+    {% endif %}
+  </div>
+{% endif %}
+</div>
 </div>
 {% endblock %}
 {% block scripts %}{% if mine %}<script src="{{ asset('/static/reporter.js') }}"></script>{% endif %}{% endblock %}

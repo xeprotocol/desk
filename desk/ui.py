@@ -32,6 +32,8 @@ router = APIRouter(include_in_schema=False)
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 _md = MarkdownIt("commonmark", {"html": False, "linkify": False}).enable("table")
+# notes are often typed as plain text with single line breaks; keep those breaks
+_md_notes = MarkdownIt("commonmark", {"html": False, "linkify": False, "breaks": True}).enable("table")
 
 
 def _fmt_ns(ns: int | None) -> str:
@@ -67,6 +69,9 @@ templates.env.filters["day"] = lambda d: _fmt_dt(d, False)
 templates.env.filters["short"] = _short
 templates.env.filters["xe"] = _xe
 templates.env.filters["md"] = _render_md
+templates.env.filters["md_note"] = lambda text: Markup(_md_notes.render(text or "")).replace(
+    "<a href=", '<a rel="nofollow noopener" target="_blank" href='
+)
 templates.env.filters["md_path"] = md_path
 
 

@@ -232,7 +232,7 @@ table.tickets td .mono { font-size:12px; }
 
 .ticket { display:grid; grid-template-columns:1fr; gap:32px; }
 @media (min-width:1024px) { .ticket { grid-template-columns:300px minmax(0,1fr); } }
-@media (min-width:1280px) { .ticket.team { grid-template-columns:300px minmax(0,1fr) 360px; } }
+.ticket .main { min-width:0; }
 .ticket h1 { font-size:clamp(24px, 2.6vw, 32px); margin-bottom:10px; }
 .ticket .head { grid-column:1 / -1; }
 .facts dl.facts { grid-template-columns:120px 1fr; }
@@ -249,9 +249,14 @@ table.tickets td .mono { font-size:12px; }
 .body.md ul, .body.md ol { padding-left:22px; } .body.md img { max-width:100%; }
 .body.md table { font-size:14px; }
 .sealed { padding:16px; border:1px dashed var(--line-strong); color:var(--mute); font-size:14px; }
-.side h3 { margin-top:0; }
-.side section { margin-bottom:32px; }
-.proposal { padding:12px 14px; margin:0 0 8px; background:var(--panel); font-size:14px; }
+/* the desk: what the team and its agents think, in the main column where it can be read */
+.desk { margin-top:40px; padding:24px 24px 20px; background:var(--panel); border:1px solid var(--stroke); border-left:3px solid var(--brand); }
+.desk .desk-head { display:flex; gap:14px; align-items:baseline; flex-wrap:wrap; margin-bottom:20px; }
+.desk .desk-head h3 { margin:0; }
+.desk section + section { margin-top:28px; padding-top:24px; border-top:1px solid var(--line); }
+.desk section h3 { margin-top:0; }
+.proposals .cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:8px; }
+.proposal { padding:12px 14px; margin:0; background:var(--raised); font-size:14px; }
 .proposal .f { font:500 12px/1.2 var(--mono); letter-spacing:.06em; text-transform:uppercase; color:var(--mute); }
 .proposal .v { color:var(--fg); font-weight:500; margin:4px 0; word-break:break-word; }
 .proposal .r { color:var(--fg-2); }
@@ -259,9 +264,16 @@ table.tickets td .mono { font-size:12px; }
 .proposal .acts { display:flex; gap:6px; margin-top:10px; }
 .proposal .acts button, .mini { min-height:32px; padding:0 12px; font-size:13px; }
 .proposal.adopted { opacity:.6; } .proposal.rejected { opacity:.45; text-decoration:line-through; }
-.note { padding:12px 0; border-top:1px solid var(--line); font-size:14.5px; color:var(--fg-2); white-space:pre-wrap; word-break:break-word; }
-.note .by { font-family:var(--mono); font-size:11px; color:var(--mute); margin-bottom:4px; white-space:normal; }
+.note { padding:16px 0; border-top:1px solid var(--line); max-width:76ch; }
+.note:last-of-type { border-bottom:1px solid var(--line); }
+.note .by { display:flex; gap:10px; align-items:center; font-family:var(--mono); font-size:12px; color:var(--mute); margin-bottom:8px; }
 .note .by b { color:var(--fg); font-weight:500; }
+.note .body { font-size:15px; line-height:1.55; color:var(--fg-2); }
+.note .body.md p:last-child, .note .body.md ul:last-child { margin-bottom:0; }
+.note .body.md ul, .note .body.md ol { margin:8px 0; } .note .body.md li { margin:3px 0; }
+.note .body.md code { font-size:13px; }
+.notes .compose { max-width:76ch; }
+.notes .compose textarea { min-height:88px; }
 .compose textarea { min-height:110px; font-size:15px; }
 .compose .row { margin-top:8px; justify-content:space-between; }
 .templates { display:flex; gap:6px; flex-wrap:wrap; }
