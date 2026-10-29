@@ -15,6 +15,7 @@ import logging
 from datetime import datetime, timezone
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..authz import SYSTEM
@@ -92,10 +93,19 @@ async def upsert_issue(
             source_created_at=_dt(issue.get("created_at")),
             github_state=state,
         )
-        t = await tsvc.create(ctx, db, "desk", spec)
-        t.github_labels = labels
-        created = True
-        if first_touch and (ctx.config.desk.get("github") or {}).get("first_touch_note", True):
+        # The worker polls the same repos; a CLI import running beside it can lose the race for an issue.
+        # The unique index on the source is the referee: on a collision, take the other side's ticket.
+        try:
+            async with db.begin_nested():
+                t = await tsvc.create(ctx, db, "desk", spec)
+                t.github_labels = labels
+            created = True
+        except IntegrityError:
+            t = await tsvc.find_by_source(db, "github", repo, number)
+            if t is None:
+                raise
+            log.info("%s#%s was imported by another process meanwhile; using %s", repo, number, t.id)
+        if created and first_touch and (ctx.config.desk.get("github") or {}).get("first_touch_note", True):
             await thread.add_note(ctx, db, SYSTEM, t, f"Imported from {repo}#{number}. First touch pending.")
     else:
         if t.body_editable and t.visibility == "public" and (t.title != title or t.body != body):
