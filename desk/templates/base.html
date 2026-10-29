@@ -63,6 +63,7 @@
           <div class="menu-sep" role="separator"></div>
           {% if team %}<a role="menuitem" class="menu-item" href="/team/account">Account · {{ p.name }}</a>{% elif me %}<a role="menuitem" class="menu-item" href="/account">Account</a>{% else %}<a role="menuitem" class="menu-item" href="/signin">{{ copy.labels.signin }}</a>{% endif %}
           {% if team %}<a role="menuitem" class="menu-item" href="/team/tokens">Agent tokens</a>{% else %}<a role="menuitem" class="menu-item" href="/team/login">Team sign-in</a>{% endif %}
+          {% if is_admin %}<a role="menuitem" class="menu-item" href="/team/users">Team</a>{% endif %}
           <div class="menu-sep" role="separator"></div>
           <a role="menuitem" class="menu-item" href="/v1">The desk's API</a>
           <a role="menuitem" class="menu-item" href="{{ path|md_path }}">This page as markdown</a>
@@ -90,6 +91,7 @@
     {% if site == "bounty" %}<a class="mobile-nav-item" href="/team/release">{{ copy.labels.release }}</a>{% endif %}
     <a class="mobile-nav-item" href="/team/outbox">{{ copy.labels.outbox }}</a>
     <a class="mobile-nav-item" href="/team/account">{{ p.name }}</a>
+    {% if is_admin %}<a class="mobile-nav-item" href="/team/users">Team</a>{% endif %}
     {% elif me %}
     <a class="mobile-nav-item" href="/my">{{ copy.labels.my_questions if site == "support" else copy.labels.my_reports }}</a>
     <a class="mobile-nav-item" href="/account">Account</a>
