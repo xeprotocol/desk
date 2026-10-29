@@ -255,7 +255,8 @@ async def test_triage_import_of_the_real_doc(ctx, db, triage_text):
     )
     assert tickets["8"].assessed_tier == "severe" and tickets["8"].claimed_tier is None  # "mixed" bundle
     assert tickets["21"].mainnet_gate == "decide" and tickets["21"].status == "accepted"
-    assert Counter(t.mainnet_gate for t in tickets.values())["before"] == 32
+    gates = Counter(t.mainnet_gate for t in tickets.values())
+    assert gates["before"] == 35 and gates["later"] == 29 and gates["decide"] == 1  # as the rows say
     prs = {(p.repo, p.ref) for p in await thread.patches_for(db, tickets["15"])}
     assert prs == {("xeprotocol/xe", "27"), ("xeprotocol/xe", "111"), ("xeprotocol/xe", "1029")}
     notes = (await db.execute(select(Note).where(Note.ticket_id == tickets["96"].id))).scalars().all()
