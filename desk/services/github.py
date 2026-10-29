@@ -14,6 +14,7 @@ import logging
 import re
 import time
 from typing import Any, AsyncIterator
+from urllib.parse import quote
 
 import httpx
 
@@ -63,7 +64,14 @@ class GitHub:
                 continue
             if r.status_code >= 400:
                 try:
-                    msg = r.json().get("message", r.text)
+                    j = r.json()
+                    msg = j.get("message", r.text)
+                    if j.get("errors"):  # 422s say what failed in here, not in the message
+                        msg += " " + "; ".join(
+                            f"{e.get('resource', '')}.{e.get('field', '')}: {e.get('code', '')}"
+                            if isinstance(e, dict) else str(e)
+                            for e in j["errors"]
+                        )
                 except Exception:
                     msg = r.text
                 raise GitHubError(r.status_code, msg)
@@ -127,19 +135,32 @@ class GitHub:
     # ---- writes ---------------------------------------------------------------------------
 
     async def ensure_labels(self, repo: str, wanted: list[dict]) -> None:
-        have = {label["name"]: label for label in await self.labels(repo)}
+        """Create or correct the desk's labels. GitHub label names are case-insensitive, so `Accepted`
+        already on the repo is the same label as `accepted`: it is renamed and recoloured, not duplicated."""
+        have = {label["name"].lower(): label for label in await self.labels(repo)}
         for w in wanted:
-            cur = have.get(w["name"])
+            cur = have.get(w["name"].lower())
             body = {
                 "name": w["name"],
-                "color": w.get("color", "ededed"),
+                "color": w.get("color", "ededed").lstrip("#").lower(),
                 "description": (w.get("description") or "")[:100],
             }
             if cur is None:
-                await self._request("POST", f"/repos/{repo}/labels", json=body)
-            elif cur.get("color") != body["color"] or (cur.get("description") or "") != body["description"]:
+                try:
+                    await self._request("POST", f"/repos/{repo}/labels", json=body)
+                except GitHubError as e:
+                    if e.status != 422 or "already_exists" not in e.message:
+                        raise
+                    cur = {"name": w["name"]}  # listed stale; fall through and correct it in place
+            if cur is not None and (
+                cur.get("name") != body["name"]
+                or (cur.get("color") or "").lower() != body["color"]
+                or (cur.get("description") or "") != body["description"]
+            ):
                 await self._request(
-                    "PATCH", f"/repos/{repo}/labels/{w['name']}", json={"new_name": w["name"], **body}
+                    "PATCH",
+                    f"/repos/{repo}/labels/{quote(cur['name'], safe='')}",
+                    json={"new_name": w["name"], **body},
                 )
 
     async def set_labels(self, repo: str, number: int, names: list[str]) -> list[str]:
