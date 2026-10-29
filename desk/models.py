@@ -21,6 +21,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -251,7 +252,18 @@ class IdCounter(Base):
 
 class Ticket(Base):
     __tablename__ = "tickets"
-    __table_args__ = (UniqueConstraint("source", "source_repo", "source_ref", name="uq_ticket_source"),)
+    # One ticket per external thing (github issue, email message id). Tickets filed on the desk itself
+    # have no external ref, so the index is partial: rows with an empty source_ref are not constrained.
+    __table_args__ = (
+        Index(
+            "uq_ticket_source",
+            "source",
+            "source_repo",
+            "source_ref",
+            unique=True,
+            postgresql_where=text("source_ref <> ''"),
+        ),
+    )
     id: Mapped[str] = mapped_column(String(16), primary_key=True)  # XE-0142 / XS-0031
     kind: Mapped[str] = mapped_column(String(8), nullable=False, index=True)
     visibility: Mapped[str] = mapped_column(String(8), nullable=False, default="public")

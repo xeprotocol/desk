@@ -253,7 +253,7 @@ async def test_triage_import_of_the_real_doc(ctx, db, triage_text):
         and tickets["99"].status == "closed"
         and tickets["99"].internal_ref == "faucet#10"
     )
-    assert tickets["8"].assessed_tier == "severe" and tickets["8"].claimed_tier == "high"
+    assert tickets["8"].assessed_tier == "severe" and tickets["8"].claimed_tier is None  # "mixed" bundle
     assert tickets["21"].mainnet_gate == "decide" and tickets["21"].status == "accepted"
     assert Counter(t.mainnet_gate for t in tickets.values())["before"] == 32
     prs = {(p.repo, p.ref) for p in await thread.patches_for(db, tickets["15"])}
