@@ -121,7 +121,10 @@ async def security_headers(request: Request, call_next):
         resp.headers.setdefault("Access-Control-Allow-Origin", "*")
         resp.headers.setdefault("Access-Control-Allow-Headers", "Authorization, Content-Type")
         resp.headers.setdefault("Cache-Control", "no-store")
-    elif not request.url.path.startswith("/static"):
+    elif request.url.path.startswith("/static"):
+        # URLs carry a content hash (ui.ASSET_V), so a file may be kept for good; a change is a new URL
+        resp.headers.setdefault("Cache-Control", "public, max-age=31536000, immutable")
+    else:
         resp.headers.setdefault(
             "Content-Security-Policy",
             "default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "

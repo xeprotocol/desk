@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +13,9 @@ from ..authz import Principal
 from ..context import Context
 from ..models import ROLES, AgentToken, Passkey, User
 from .tickets import utcnow
+
+
+EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 async def by_email(db: AsyncSession, email: str) -> User | None:
@@ -61,6 +66,21 @@ async def set_name(ctx: Context, db: AsyncSession, actor: str, u: User, name: st
     old = u.name
     u.name = name
     await ctx.events.append(db, "user.renamed", actor, {"user": u.id, "from": old, "to": name})
+
+
+async def set_email(ctx: Context, db: AsyncSession, actor: str, u: User, email: str) -> None:
+    """The sign-in email and where invites go. Must be unused by another member."""
+    email = (email or "").strip().lower()
+    if not EMAIL.match(email) or len(email) > 256:
+        raise HTTPException(400, "that does not look like an email address")
+    other = await by_email(db, email)
+    if other is not None and other.id != u.id:
+        raise HTTPException(409, "another member has that email")
+    old = u.email
+    if old == email:
+        return
+    u.email = email
+    await ctx.events.append(db, "user.email", actor, {"user": u.id, "from": old, "to": email})
 
 
 async def set_active(ctx: Context, db: AsyncSession, actor: str, u: User, active: bool) -> None:

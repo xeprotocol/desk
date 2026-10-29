@@ -67,4 +67,4 @@
 <p class="k" style="margin-top:12px">Signing in logs an entry (your account id, the method, the address you came from) in the desk's private log. Nothing about you is shown publicly except the name on your reports.</p>
 </div>
 {% endblock %}
-{% block scripts %}<script src="/static/signer.js"></script><script src="/static/reporter.js"></script>{% endblock %}
+{% block scripts %}<script src="{{ asset('/static/signer.js') }}"></script><script src="{{ asset('/static/reporter.js') }}"></script>{% endblock %}

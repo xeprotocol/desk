@@ -236,7 +236,8 @@ async def test_agent_proposes_human_adopts(ctx, db):
 
 async def test_a_member_is_renamed_and_future_replies_carry_it(ctx, db):
     team = await _team(ctx, db)
-    t = await tsvc.create(ctx, db, "desk", tsvc.NewTicket(kind="bounty", title="Renaming test", body="b" * 50))
+    spec = tsvc.NewTicket(kind="bounty", title="Renaming test", body="b" * 50)
+    t = await tsvc.create(ctx, db, "desk", spec)
     r1 = await thread.add_reply(ctx, db, team, t, "First reply, under the old name.")
     await users.set_name(ctx, db, "cli", team.user, "  Joseph   Denne ")
     assert team.user.name == "Joseph Denne"
@@ -244,6 +245,14 @@ async def test_a_member_is_renamed_and_future_replies_carry_it(ctx, db):
     assert r1.author_name == "Lead" and r2.author_name == "Joseph Denne"
     with pytest.raises(HTTPException):
         await users.set_name(ctx, db, "cli", team.user, "   ")
+    # email: must look like one and be free
+    await users.set_email(ctx, db, "cli", team.user, " Joseph@XE.network ")
+    assert team.user.email == "joseph@xe.network"
+    other = await users.create_user(ctx, db, "test", "other@xe.network", "Other", ["reviewer"])
+    with pytest.raises(HTTPException):
+        await users.set_email(ctx, db, "cli", other, "joseph@xe.network")
+    with pytest.raises(HTTPException):
+        await users.set_email(ctx, db, "cli", other, "not-an-address")
 
 
 # ---- github sync ------------------------------------------------------------------------------------

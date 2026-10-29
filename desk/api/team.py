@@ -324,10 +324,24 @@ class UserEditIn(BaseModel):
     roles: list[str] | None = None
     active: bool | None = None
     name: str | None = None
+    email: str | None = None
 
 
 class NameIn(BaseModel):
     name: str
+
+
+class EmailIn(BaseModel):
+    email: str
+
+
+@router.post("/account/email")
+async def change_my_email(ctx: Ctx, db: Db, who: Who, request: Request, body: EmailIn):
+    """Your own sign-in email. Passkeys and the code stay; only the address you type at sign-in changes."""
+    _team(who, request)
+    await users.set_email(ctx, db, who.principal.actor, who.principal.user, body.email)
+    await db.commit()
+    return users.user_dict(who.principal.user)
 
 
 @router.post("/account/name")
@@ -348,6 +362,8 @@ async def edit_user(ctx: Ctx, db: Db, who: Who, request: Request, uid: int, body
         raise HTTPException(404, "no such user")
     if body.name is not None:
         await users.set_name(ctx, db, who.principal.actor, u, body.name)
+    if body.email is not None:
+        await users.set_email(ctx, db, who.principal.actor, u, body.email)
     if body.roles is not None:
         await users.set_roles(ctx, db, who.principal.actor, u, body.roles)
     if body.active is not None:

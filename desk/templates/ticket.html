@@ -187,4 +187,4 @@
 {% endif %}
 </div>
 {% endblock %}
-{% block scripts %}{% if mine %}<script src="/static/reporter.js"></script>{% endif %}{% endblock %}
+{% block scripts %}{% if mine %}<script src="{{ asset('/static/reporter.js') }}"></script>{% endif %}{% endblock %}

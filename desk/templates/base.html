@@ -11,9 +11,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="/static/site.css">
+<link rel="stylesheet" href="{{ asset('/static/site.css') }}">
 <link rel="alternate" type="text/markdown" href="{{ path|md_path }}" title="This page as markdown">
-<script src="/static/desk.js" defer></script>
+<script src="{{ asset('/static/desk.js') }}" defer></script>
 </head>
 <body>
 {% import "_macros.html" as m with context %}

@@ -7,9 +7,11 @@
 
 <div class="grid">
 <div class="card">
-  <h3>Name</h3>
-  <p>The name on every reply you send. Reporters see it on GitHub and on the desk.</p>
+  <h3>You</h3>
+  <label for="my-name">Name <span class="k">on every reply you send; reporters see it on GitHub and on the desk</span></label>
   <div class="row"><input type="text" id="my-name" value="{{ p.user.name }}" maxlength="128" style="max-width:260px"><button class="mini" type="button" id="save-name">Save</button></div>
+  <label for="my-email" style="margin-top:12px">Email <span class="k">the address you type at sign-in; passkeys and the code stay</span></label>
+  <div class="row"><input type="email" id="my-email" value="{{ p.user.email }}" maxlength="256" style="max-width:300px"><button class="mini" type="button" id="save-email">Save</button></div>
   <div class="msg" id="name-msg" style="display:none"></div>
 </div>
 <div class="card">

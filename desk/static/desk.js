@@ -132,11 +132,16 @@
       try { await api("DELETE", `/v1/auth/passkeys/${b.dataset.removePasskey}`); reload(); } catch (e) { say($("#passkey-msg"), e.message, false); }
     }));
   }
-  const saveName = $("#save-name");
+  const saveName = $("#save-name"), saveEmail = $("#save-email");
   if (saveName) saveName.addEventListener("click", async () => {
     saveName.disabled = true;
     try { await api("POST", "/v1/team/account/name", { name: $("#my-name").value.trim() }); say($("#name-msg"), "Saved.", true); setTimeout(reload, 500); }
     catch (e) { say($("#name-msg"), e.message, false); saveName.disabled = false; }
+  });
+  if (saveEmail) saveEmail.addEventListener("click", async () => {
+    saveEmail.disabled = true;
+    try { await api("POST", "/v1/team/account/email", { email: $("#my-email").value.trim() }); say($("#name-msg"), "Saved. Use the new address at sign-in.", true); setTimeout(reload, 900); }
+    catch (e) { say($("#name-msg"), e.message, false); saveEmail.disabled = false; }
   });
   if ($("#setup-totp")) {
     let cid = null;

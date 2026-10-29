@@ -68,6 +68,22 @@ templates.env.filters["short"] = _short
 templates.env.filters["xe"] = _xe
 templates.env.filters["md"] = _render_md
 templates.env.filters["md_path"] = md_path
+
+
+def _asset_version() -> str:
+    """A short hash of the static files, so a deploy never serves a page against a cached script."""
+    import hashlib
+
+    h = hashlib.sha256()
+    for f in sorted((Path(__file__).parent / "static").glob("*")):
+        if f.is_file():
+            h.update(f.name.encode())
+            h.update(f.read_bytes())
+    return h.hexdigest()[:10]
+
+
+ASSET_V = _asset_version()
+templates.env.globals["asset"] = lambda path: f"{path}?v={ASSET_V}"
 templates.env.filters["esc"] = escape
 
 
