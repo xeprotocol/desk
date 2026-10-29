@@ -25,8 +25,9 @@ from desk.db import Base
 from desk.log import EventLog
 from desk.models import AgentToken, Note, Proposal, Reply, Ticket, User
 from desk.services import proposals as psvc
+from desk.services import channels
 from desk.services import reporters as rsvc
-from desk.services import thread, triage, users
+from desk.services import sync, thread, triage, users
 from desk.services import tickets as tsvc
 from desk.services.tickets import utcnow
 from desk.settings import Settings
@@ -431,3 +432,122 @@ async def test_xe_login_and_identity_merge(ctx, db):
     link = await auth.consume_reporter_link(db, raw)
     assert link is not None and link.reporter_id == a.id and link.next_path == "/my"
     assert await auth.consume_reporter_link(db, raw) is None
+
+
+# ---- chat channels (the bot's database side) --------------------------------------------------------------
+
+
+def _post(uid="1001", **kw) -> channels.ChannelPost:
+    base = dict(
+        platform="discord",
+        thread_ref="555",
+        thread_url="https://discord.com/channels/1/2/555",
+        user_id=uid,
+        user_name="Ada",
+        user_handle="ada",
+        title="When does the token launch",
+        body="Saw a date in a Telegram group; is it real?",
+        topic="launch-token",
+    )
+    base.update(kw)
+    return channels.ChannelPost(**base)
+
+
+async def test_discord_thread_becomes_a_support_ticket(ctx, db):
+    t = await channels.open_from_channel(ctx, db, _post())
+    await db.commit()
+    assert t.kind == "support" and t.source == "discord" and t.source_ref == "555"
+    assert t.area == "launch-token" and t.channel_state == "open" and t.visibility == "public"
+    r = await channels.by_platform(db, "discord", "1001")
+    assert r is not None and r.id == t.reporter_id and r.platform_ids["discord_handle"] == "ada"
+    assert (await channels.ticket_for(db, "discord", "555")).id == t.id
+    # the same person asking again is the same reporter
+    t2 = await channels.open_from_channel(ctx, db, _post(thread_ref="556", title="And where is the wallet"))
+    assert t2.reporter_id == r.id
+    # the bot's lines come from the public register with the ticket filled in
+    created = channels.bot_text(ctx, "created", t)
+    assert t.id in created and "support.test" in created
+
+
+async def test_discord_messages_thread_and_move_status(ctx, db):
+    t = await channels.open_from_channel(ctx, db, _post())
+    team = await _team(ctx, db)
+    # the team's first word in the thread starts triage
+    m = await channels.incoming(
+        ctx, db, t, message_ref="m1", user_id="9", user_name="Bea", body="Looking.", is_team=True
+    )
+    assert m is not None and m.author_is_team and t.status == "triaging"
+    # idempotent on the platform message id
+    tk = dict(user_id="9", user_name="Bea", is_team=True)
+    again = await channels.incoming(ctx, db, t, message_ref="m1", body="x", **tk)
+    assert again is None
+    # needs-info, then the reporter answers: back to triage; a stranger's message does not
+    await tsvc.set_status(ctx, db, team, t, "needs-info")
+    kw = dict(user_name="x", is_team=False)
+    await channels.incoming(ctx, db, t, message_ref="m2", user_id="2002", body="me", **kw)
+    assert t.status == "needs-info"
+    await channels.incoming(ctx, db, t, message_ref="m3", user_id="1001", body="hi", **kw)
+    assert t.status == "triaging"
+    msgs = await thread.messages_for(db, t)
+    assert [x.source_ref for x in msgs] == ["m1", "m2", "m3"]
+    # attachments become lines, an empty message is nothing
+    await channels.incoming(
+        ctx, db, t, message_ref="m4", user_id="1001", user_name="Ada", body="", is_team=False,
+        attachments=["https://cdn/x.png"],
+    )
+    last = (await thread.messages_for(db, t))[-1]
+    assert "Attachment: https://cdn/x.png" in thread.message_body(ctx, t, last)
+    blank = await channels.incoming(ctx, db, t, message_ref="m5", user_id="1001", body="  ", **kw)
+    assert blank is None
+
+
+async def test_desk_reply_is_queued_for_the_bot_not_the_worker(ctx, db):
+    t = await channels.open_from_channel(ctx, db, _post())
+    team = await _team(ctx, db)
+    r = await thread.add_reply(ctx, db, team, t, "There is no announced date.")
+    assert r.mirror == "queued"
+    assert await sync.queued_replies(db) == []  # the worker leaves it alone
+    pairs = await channels.queued_replies(db, "discord")
+    assert [(x.id, y.id) for x, y in pairs] == [(r.id, t.id)]
+    text = channels.reply_text(ctx, t, r)
+    assert "XE team" in text and t.id in text
+    await channels.mark_mirrored(ctx, db, r, t, message_ref="d9", url="https://discord.com/x")
+    assert r.mirror == "sent" and r.mirror_ref == "https://discord.com/x"
+    assert [x.source_ref for x in await thread.messages_for(db, t)][-1] == "d9"
+    assert await channels.queued_replies(db, "discord") == []
+
+
+async def test_close_convert_rename_from_the_channel_and_state_push(ctx, db):
+    t = await channels.open_from_channel(ctx, db, _post())
+    assert await channels.needing_state_push(db, "discord") == []
+    assert await channels.close_from_channel(ctx, db, t, user_id="9", reason="stale, no reply") == "stale"
+    assert t.status == "closed" and t.closed_reason == "stale" and t.channel_state == "closed"
+    assert "Stale" in channels.closed_line(ctx, t) or "stale" in channels.closed_line(ctx, t)
+    # closed on the desk instead: the bot finds it and marks the thread
+    t2 = await channels.open_from_channel(ctx, db, _post(thread_ref="777", title="Lost my key, any way back"))
+    team = await _team(ctx, db)
+    await tsvc.set_status(ctx, db, team, t2, "triaging")
+    await tsvc.set_status(ctx, db, team, t2, "closed", closed_reason="answered")
+    assert [x.id for x in await channels.needing_state_push(db, "discord")] == [t2.id]
+    await channels.mark_state(ctx, db, t2, "closed")
+    assert await channels.needing_state_push(db, "discord") == []
+    await channels.reopen_from_channel(ctx, db, t2, user_id="9")
+    assert t2.status == "triaging" and t2.channel_state == "open"
+    # a question that is a bug
+    new = await channels.rename_from_channel(ctx, db, t2, user_id="9", title="Escrow releases twice")
+    assert t2.title == new
+    await channels.convert_to_bounty(ctx, db, t2, user_id="9")
+    assert t2.kind == "bounty" and t2.area is None
+    with pytest.raises(HTTPException):
+        await channels.convert_to_bounty(ctx, db, t2, user_id="9")
+    assert "proof of concept" in channels.bot_text(ctx, "converted", t2)
+
+
+async def test_discord_identity_links_to_a_web_account(ctx, db):
+    t = await channels.open_from_channel(ctx, db, _post())
+    web = await rsvc.from_email(ctx, db, "ada@example.org", link_to=None)
+    merged = await channels.from_platform(ctx, db, "discord", "1001", name="Ada", link_to=web)
+    assert merged.id == web.id and merged.platform_ids["discord"] == "1001"
+    await db.refresh(t)
+    assert t.reporter_id == web.id
+    assert [x.id for x in await rsvc.my_tickets(db, web)] == [t.id]

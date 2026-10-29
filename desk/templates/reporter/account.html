@@ -10,6 +10,9 @@
   <h3>Ways in</h3>
   <table class="toks">
     <tr><td>GitHub</td><td class="k">{% if me.github_login %}@{{ me.github_login }}{% else %}not linked{% endif %}</td><td class="right">{% if not me.github_login and github_sign_in %}<a class="mini button" href="/v1/reporter/auth/github?next=/account">Link</a>{% endif %}</td></tr>
+    {% if discord_sign_in or me.platform_ids.get("discord") %}
+    <tr><td>Discord</td><td class="k">{% if me.platform_ids.get("discord") %}{{ me.platform_ids.get("discord_handle") or me.platform_ids.get("discord") }}{% else %}not linked{% endif %}</td><td class="right">{% if not me.platform_ids.get("discord") and discord_sign_in %}<a class="mini button" href="/v1/reporter/auth/discord?next=/account">Link</a>{% endif %}</td></tr>
+    {% endif %}
     <tr><td>Email</td><td class="k">{{ me.email or "not linked" }}</td><td class="right">{% if not me.email %}<div class="row"><input type="email" id="email" placeholder="you@example.org" style="max-width:200px"><button class="mini" type="button" id="email-start">Link</button></div>{% endif %}</td></tr>
     <tr><td>XE key</td><td class="k">{% if me.xe_login_addresses %}{% for a in me.xe_login_addresses %}<code class="mono">{{ a }}</code><br>{% endfor %}{% else %}none{% endif %}</td><td class="right"><button class="ghost mini" type="button" id="xe-link-toggle">Add a key</button></td></tr>
   </table>

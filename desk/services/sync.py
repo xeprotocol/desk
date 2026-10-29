@@ -425,7 +425,14 @@ async def mirror_reply(ctx: Context, db: AsyncSession, client: gh.GitHub, r: Rep
 
 
 async def queued_replies(db: AsyncSession, limit: int = 50) -> list[Reply]:
-    q = select(Reply).where(Reply.mirror == "queued").order_by(Reply.created_at.asc()).limit(limit)
+    """Replies for the worker to mirror. Chat-sourced tickets are left queued for their bot."""
+    q = (
+        select(Reply)
+        .join(Ticket, Ticket.id == Reply.ticket_id)
+        .where(Reply.mirror == "queued", Ticket.source.notin_(("discord", "telegram")))
+        .order_by(Reply.created_at.asc())
+        .limit(limit)
+    )
     return list((await db.execute(q)).scalars().all())
 
 

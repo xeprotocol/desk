@@ -124,7 +124,9 @@ async def add_reply(ctx: Context, db: AsyncSession, p: Principal, t: Ticket, bod
         raise HTTPException(400, "empty reply")
     if p.user is None:
         raise HTTPException(403, "only a person sends a public reply")
-    mirror = "queued" if t.source == "github" and t.visibility == "public" else "none"
+    # Mirrored when the source channel can carry it: a GitHub comment, a message in the Discord thread.
+    # The worker handles GitHub; each bot handles its own channel.
+    mirror = "queued" if t.source in ("github", "discord", "telegram") and t.visibility == "public" else "none"
     r = Reply(ticket_id=t.id, author_id=p.user.id, author_name=p.name, body=body, mirror=mirror)
     db.add(r)
     t.last_public_at = utcnow()

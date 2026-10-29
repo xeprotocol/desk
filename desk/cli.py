@@ -422,6 +422,14 @@ def copy_lint():
         raise typer.Exit(1)
 
 
+@app.command("bot-discord")
+def bot_discord():
+    """Run the Discord support bot (the `bot` compose service does this)."""
+    from .bots.discord_bot import main
+
+    _run(main())
+
+
 @app.command("health")
 def health():
     async def go():

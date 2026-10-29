@@ -168,8 +168,17 @@ reply_templates:
     a link to "verify" or "claim" anything. Do not reply to it, do not click it, and if you entered a
     seed anywhere, move funds to a new wallet now. Thank you for asking first.
 
+# What the chat bots say. Every line passes the same lint as the rest of this file.
 bots:
+  panel_title: Ask the XE team
+  panel_body: >-
+    Pick a topic and a short form opens. Your question gets its own thread here and a page on the
+    support site, where the answer stays for the next person. Never put a seed, private key or
+    password in a question; nobody from XE will ask for one.
   created: "Logged as {ticket_id}. Follow it at {ticket_url}. Replies here go to the same place."
+  opened: >-
+    The team reads everything within a day. Anything you add in this thread is added to the ticket.
+    The question and its answer are public on the support site; this thread is not.
   converted: >-
     This looks like a bug rather than a question, so it has moved to the bounty queue as {ticket_id}.
     Add a payout address at {ticket_url}. Do not post a proof of concept here.

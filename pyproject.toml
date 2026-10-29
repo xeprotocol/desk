@@ -29,6 +29,7 @@ dependencies = [
   "markdownify>=1.1",
   "beautifulsoup4>=4.12",
   "sse-starlette>=2.1",
+  "discord.py>=2.4",
   # beyond the harness list; justified in docs/DESK_BRIEF.md §14
   "webauthn>=2.0",
 ]

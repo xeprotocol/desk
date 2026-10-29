@@ -16,6 +16,13 @@
   <p class="k">Not set up on this desk yet.</p>
   {% endif %}
 </div>
+{% if discord_sign_in %}
+<div class="card">
+  <h3>Discord</h3>
+  <p>{% if site == "support" %}Asked in the XE Discord already? Sign in with the same account and the thread is here under your questions.{% else %}If you are in the XE Discord.{% endif %}</p>
+  <a class="button" href="/v1/reporter/auth/discord?next={{ next|urlencode }}">Continue with Discord</a>
+</div>
+{% endif %}
 <div class="card">
   <h3>Email</h3>
   <p>A one-time link, good for fifteen minutes.</p>

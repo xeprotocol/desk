@@ -207,6 +207,8 @@ A support ticket that is actually a bug report is converted to `bounty` by a rev
 
 Web support is the same ticket via a form at `support.xe.network`, with email magic link so people can be replied to.
 
+*As built, 29 October (Discord):* a `/panel` in `#support` with the eight support topics as a select menu; picking one opens a two-field modal; submitting opens a private thread (public if the server cannot) and the ticket, `source=discord`, `source_ref=<thread id>`. Thread messages append to the public thread; desk replies are posted into the thread by the bot under the author's name; closing on either side archives the thread. `/close`, `/reopen`, `/bounty`, `/rename`, `/add`, `/answer <support template>`, `/ticket`. Reporters are keyed on Discord id and merge with a web account on Discord sign-in. The thread is private and the ticket public, so the asker is not exposed in the moment and the answer still serves the next person. Telegram follows in the same shape (`desk/services/channels.py` is platform-neutral; only the gateway glue is Discord's).
+
 ## 12. Awards and payout
 
 Acceptance sets `award_xe` within the tier ceiling, which is a published config value, not a column. A Treasurer approves awards; approvals are signed events in the chained log. At genesis, `GET /v1/export/payouts.csv` produces `(ticket, address, micro-units)` for every `awarded` ticket with an approved award and a payout address.
@@ -273,6 +275,8 @@ Three releases. Each is usable on its own; none waits for the next. Both clocks,
 | **1. Backend and team UI** | Schema, auth, roles, ticket and note and proposal model, severity-ordered list, ticket page with adopt/reject, release view, outbox, GitHub import and two-way sync, triage import with internal refs and status mapping, agent API with scoped tokens, markdown mirror, deploy | 3–4 weeks | 3–4 days |
 | **2. Reporter portal** | Accounts (GitHub, email, XE key), filing form, private tickets with encryption, wallet generation, my reports, public ticket browser, leaderboard, disclosure flow, award approval and payout export | 2–3 weeks | 2–3 days |
 | **3. Support** | Discord bot, Telegram bot, web support form, convert-to-bounty, channel mirroring | 1–2 weeks | 1–2 days |
+
+Release 3 so far (29 October): the web support form shipped with Release 2; the support door was rebuilt around holders' questions (topics, answered-first list, safety notice, answer templates); the Discord bot and Discord sign-in shipped. Telegram is the remaining item.
 
 Release 2 shipped 28 October: three sign-ins, the filing form on both doors (`/report`, `/ask`), private reports sealed with their attachments, the in-browser key and payout binding, `/my`, reporter replies and withdrawal, and the treasurer's `payouts.csv`. Release 1 alone fixes the programme hygiene problems in the triage doc (no labels, no replies, triage in a file, wallets in threads), clears the eleven fixed-but-silent issues through the outbox, and gives Adam the API. Release 2 retires `security@` as the Critical path. Release 3 gives Joseph the single dashboard.
 

@@ -124,6 +124,7 @@ def render(request: Request, name: str, ctx: dict, status_code: int = 200) -> HT
         "split": c.settings.hosts["bounty"] != c.settings.hosts["support"],
         "me": getattr(request.state, "reporter", None),
         "github_sign_in": bool(c.settings.github_oauth_client_id),
+        "discord_sign_in": c.settings.discord_sign_in,
         "mail_sign_in": bool(c.settings.smtp_host),
         "p": p,
         "team": p.is_team,

@@ -4,7 +4,7 @@ The ticket desk for the XE bug bounty and support: reports come in from GitHub (
 
 The design is [`docs/DESK_BRIEF.md`](docs/DESK_BRIEF.md). The seed data is [`docs/BOUNTY_TRIAGE.md`](docs/BOUNTY_TRIAGE.md), which the desk imports once and can export again at `/v1/export/triage.md`. Deployment is [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
-## What it does (releases 1 and 2)
+## What it does (releases 1 to 3, Telegram pending)
 
 - **Tickets.** `XE-0001` bounty, `XS-0001` support. Facts exactly as the triage columns: verdict, claimed and assessed tier, area, gate (before / decide / later), effort band, duplicate-of, internal ticket, patches. Status `new → triaging → needs-info ⇄ → accepted → fixing → patched → disclosed → awarded → paid`, or `closed` with a reason.
 - **An agent recommends; a human decides and speaks.** Agent tokens can read, write internal notes, propose changes to facts and draft replies, and link PRs. No token scope sends a reply, sets a status or award, or reads a payout address. Adopting a proposal writes the field through the same checks a human edit uses; adopting a reply draft only fills the editor.
@@ -15,6 +15,7 @@ The design is [`docs/DESK_BRIEF.md`](docs/DESK_BRIEF.md). The seed data is [`doc
 - **Team sign-in.** Passkeys (WebAuthn, RP id `xe.network` so one key works on both hosts), TOTP as the fallback, one-time invite links. No passwords.
 - **Two doors.** `bounty.xe.network` for researchers (reports, scope, leaderboard, `/report`); `support.xe.network` for holders and the community: when does the token launch, how do I make a wallet, I have lost my key, is this message real (topics, `/ask`, every answer public and kept). Same desk, same log; distinct menus, vocabulary and copy. Support knows nothing of tiers, areas or awards; the bounty knows nothing of topics.
 - **Reporters.** Sign in with GitHub, an email link, or an XE key signature (`xe/desk/login/v1`); one account holds all three. File with attachments; Critical and Severe reports are private whatever the box says, sealed on arrival with their files. `/my` follows each report; reporters reply and withdraw from the ticket page. A payout address is bound only by a signature from its key (`xe/desk/payout/v1`); the key can be made in the browser and never leaves it. Treasurers export `payouts.csv`.
+- **Discord.** A panel in `#support` with the topic menu; a form; a private thread per question that *is* the ticket's thread. Team answers from Discord or the desk; the bot carries desk replies into the thread and archives it on close. `/bounty` moves a question that is really a bug, with the no-PoC-in-chat warning. Sign in on the web with Discord and the threads are under `/my`.
 - **Reading surfaces.** Server-rendered pages, every one also markdown (`/path.md` or `Accept: text/markdown`), `/llms.txt`, JSON under `/v1`, SSE at `/v1/events/stream`.
 
 ## Layout

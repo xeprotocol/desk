@@ -353,6 +353,9 @@ class Ticket(Base):
         String(8), nullable=False, default=""
     )  # open | closed, as last seen
     github_labels: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
+    channel_state: Mapped[str] = mapped_column(
+        String(8), nullable=False, default=""
+    )  # open | closed, as last mirrored to a chat channel (discord, telegram)
     last_public_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )  # last reply we sent

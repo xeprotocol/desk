@@ -71,6 +71,29 @@ services:
         condition: service_completed_successfully
     command: ["python", "-m", "desk.worker"]
 
+  # The Discord support bot. Started only with `docker compose --profile discord up -d`, once
+  # DISCORD_BOT_TOKEN, DISCORD_GUILD_ID and DISCORD_SUPPORT_CHANNEL_ID are in .env.
+  bot:
+    build:
+      context: .
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+    restart: unless-stopped
+    profiles: ["discord"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-desk}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-desk}
+      DESK_ROLE: bot
+    volumes:
+      - ./config:/app/config:ro
+      - ./secrets:/app/secrets:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    command: ["python", "-m", "desk.bots.discord_bot"]
+
 volumes:
   pgdata:
   blobs:

@@ -39,6 +39,7 @@ Edit `.env`:
 - `INTERNAL_TRACKER_URL`: already `https://github.com/xeprotocol/core/issues/{ref}`; change only if the tracker moves (and change `internal.repo` in `config/desk.yaml` with it).
 - `SMTP_*`: optional; without it, invite links are printed instead of emailed, and reporters' email sign-in links go to the app log (`docker compose logs app | grep "would send"`) rather than to them.
 - `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET`: for "Continue with GitHub" on the reporter sign-in. Create an OAuth App on the `xeprotocol` org (Settings → Developer settings → OAuth Apps): homepage `https://bounty.xe.network`, callback `https://bounty.xe.network/v1/reporter/auth/github/callback`. Both hosts send the browser to the bounty host for the callback; the cookie is set for `.xe.network` so it works on both. Left empty, the button is hidden and reporters sign in by email link or XE key.
+- `DISCORD_*`: the support bot and Discord sign-in; §10. All empty: no bot, no button.
 - `DESK_MAX_ATTACHMENT_MB`, `DESK_MAX_ATTACHMENTS`: filing-form limits (10 MB, 5 files by default). Attachments live in the `blobs` volume; private ones are sealed with the vault key, so the volume is useless without `secrets/signer.json`.
 
 ## 2. Build and test
@@ -119,7 +120,7 @@ Or on `/team/tokens`. The token is shown once. An agent then reads `https://boun
 
 ## 7. Day to day
 
-Release 2 changes the schema (`reporters` gains columns; `reporter_sessions`, `reporter_links` are new; `challenges.detail`). Migration `0001` is `create_all`, so on an existing install reset the schema and re-import; nothing filed on the web exists yet, GitHub and the triage doc are the sources of truth:
+Releases 2 and 3 change the schema (`reporters` gains columns; `reporter_sessions`, `reporter_links` are new; `challenges.detail`; `tickets.channel_state`). Migration `0001` is `create_all`, so on an existing install reset the schema and re-import; nothing filed on the web exists yet, GitHub and the triage doc are the sources of truth:
 
 ```sh
 docker compose build
@@ -158,3 +159,30 @@ If `docker compose ps` shows no `app`, it was never started: `docker compose up 
 ## 9. Backups
 
 `pgdata` (Postgres) and `blobs` (attachments) are compose volumes; `secrets/` is a bind mount. A nightly `pg_dump` plus a copy of `secrets/signer.json` is the whole backup. Without the keyfile, the dump's private bodies are unreadable, which is the point.
+
+## 10. Discord
+
+One Discord application does both the support bot and "Continue with Discord" on the sign-in page.
+
+1. [discord.com/developers/applications](https://discord.com/developers/applications) → New Application, named for the desk. On **General Information** copy the Application ID → `DISCORD_APP_ID`.
+2. **OAuth2**: add redirect `https://bounty.xe.network/v1/reporter/auth/discord/callback` (the bounty host; the cookie is set for `.xe.network` so it works on both). Reset and copy the client secret → `DISCORD_OAUTH_CLIENT_SECRET`.
+3. **Bot**: Reset Token → `DISCORD_BOT_TOKEN`. Under Privileged Gateway Intents turn on **Message Content** (to read follow-ups in threads). Server Members is not needed. Public Bot off.
+4. Invite it. OAuth2 → URL Generator: scopes `bot` and `applications.commands`; bot permissions View Channels, Send Messages, Send Messages in Threads, Create Private Threads, Manage Threads, Read Message History, Embed Links, Attach Files. Not Administrator. Open the URL, pick the server.
+5. Ids, with Developer Mode on (User Settings → Advanced): right-click the server → Copy Server ID → `DISCORD_GUILD_ID`; the `#support` channel → `DISCORD_SUPPORT_CHANNEL_ID`; the role that answers support → `DISCORD_SUPPORT_ROLE_ID`. The bot's own role needs to be able to see and post in that channel.
+6. `.env` filled in, then:
+
+```sh
+docker compose build
+docker compose --profile discord up -d
+docker compose logs -f bot        # "discord bot up as …"
+```
+
+7. In `#support`, as someone with the support role: `/panel`. The bot posts the topic menu. Pin it.
+
+What happens then: a person picks a topic, a two-field form opens, and on submit the bot opens a private thread (public if the server cannot make private ones), adds them, mentions the support role, and creates `XS-nnnn` with `source=discord`. Everything written in the thread goes onto the ticket's public thread; the team answers either in the thread or on the desk, and the bot carries desk replies into the thread under the author's name. Closing from either side archives the thread with a one-line reason.
+
+Slash commands, team role only unless noted: `/close [reason]` (`stale…` or `dup…` pick those reasons; anything else is answered), `/reopen`, `/bounty` (a question that is really a bug; the bot tells the reporter where it went and not to post a PoC), `/rename`, `/add @user`, `/answer` (the support templates from `config/copy/public.yaml`, posted under your name), `/ticket` (anyone: the desk link).
+
+The bot keys reporters on their Discord id. When the same person later signs in on the web with Discord, the accounts are one and the thread shows under `/my`.
+
+Restart after config changes: `docker compose --profile discord restart bot`. The bot is harmless when down: questions asked on the web still work, and desk replies to Discord tickets queue until it is back.

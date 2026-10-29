@@ -21,6 +21,7 @@ from sqlalchemy import delete, select
 from .. import auth
 from ..canonical import DOMAIN_LOGIN, DOMAIN_PAYOUT
 from ..models import Challenge, Reporter
+from ..services import channels
 from ..services import reporters as rsvc
 from ..services import tickets as tsvc
 from .deps import Ctx, Db, Who
@@ -154,6 +155,90 @@ async def github_callback(
     return resp
 
 
+# ---- Discord OAuth ------------------------------------------------------------------------------------
+
+
+def _discord_callback_url(ctx: Ctx) -> str:
+    return f"{ctx.settings.scheme}://{ctx.settings.hosts['bounty']}/v1/reporter/auth/discord/callback"
+
+
+@router.get("/auth/discord")
+async def discord_start(ctx: Ctx, db: Db, who: Who, request: Request, next: str | None = None):
+    """Same shape as GitHub. The Discord identity is the one the support bot keys tickets on, so a person
+    who asked in Discord and then signs in here finds the thread under /my."""
+    if not ctx.settings.discord_sign_in:
+        raise HTTPException(503, "Discord sign-in is not configured")
+    _limit(request)
+    state = secrets.token_urlsafe(24)
+    db.add(
+        Challenge(
+            id=state,
+            kind="oauth-discord",
+            user_id=None,
+            challenge=b"",
+            expires_at=auth.now() + auth.CHALLENGE_TTL,
+            detail={"next": _safe_next(ctx, next), "link_to": who.reporter.id if who.reporter else None},
+        )
+    )
+    await db.commit()
+    q = urlencode(
+        {
+            "client_id": ctx.settings.discord_app_id,
+            "redirect_uri": _discord_callback_url(ctx),
+            "response_type": "code",
+            "scope": "identify email",
+            "state": state,
+            "prompt": "none",
+        }
+    )
+    return RedirectResponse(f"https://discord.com/oauth2/authorize?{q}", status_code=302)
+
+
+@router.get("/auth/discord/callback")
+async def discord_callback(
+    ctx: Ctx, db: Db, request: Request, code: str = "", state: str = "", error: str = ""
+):
+    ch = (await db.execute(select(Challenge).where(Challenge.id == state))).scalar_one_or_none()
+    if ch is None or ch.kind != "oauth-discord" or ch.expires_at < auth.now():
+        raise HTTPException(400, "sign-in expired or state mismatch; start again")
+    await db.execute(delete(Challenge).where(Challenge.id == state))
+    if error or not code:
+        raise HTTPException(400, f"Discord did not sign you in: {error or 'no code'}")
+    async with httpx.AsyncClient(timeout=15) as client:
+        tok = await client.post(
+            "https://discord.com/api/oauth2/token",
+            data={
+                "client_id": ctx.settings.discord_app_id,
+                "client_secret": ctx.settings.discord_oauth_client_secret,
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": _discord_callback_url(ctx),
+            },
+            headers={"Accept": "application/json"},
+        )
+        access = (tok.json() if tok.status_code == 200 else {}).get("access_token")
+        if not access:
+            raise HTTPException(400, "Discord did not return a token; start again")
+        h = {"Authorization": f"Bearer {access}"}
+        user = (await client.get("https://discord.com/api/users/@me", headers=h)).json()
+    if not isinstance(user, dict) or "id" not in user:
+        raise HTTPException(400, "Discord returned no user; start again")
+    link_to = await rsvc.get(db, ch.detail.get("link_to")) if ch.detail.get("link_to") else None
+    r = await channels.from_platform(
+        ctx,
+        db,
+        "discord",
+        str(user["id"]),
+        name=user.get("global_name") or user.get("username") or "",
+        handle=user.get("username") or "",
+        email=(user.get("email") or "") if user.get("verified") else "",
+        link_to=link_to,
+    )
+    resp = RedirectResponse(ch.detail.get("next") or "/my", status_code=302)
+    await _sign_in(ctx, db, request, resp, r, "discord")
+    return resp
+
+
 # ---- email link ---------------------------------------------------------------------------------------
 
 
@@ -242,6 +327,7 @@ async def me(ctx: Ctx, db: Db, who: Who):
         "csrf": who.csrf,
         "tickets": [tsvc.to_dict(ctx, t, who.principal) for t in mine],
         "github_sign_in": bool(ctx.settings.github_oauth_client_id),
+        "discord_sign_in": ctx.settings.discord_sign_in,
         "mail": bool(ctx.settings.smtp_host),
     }
 

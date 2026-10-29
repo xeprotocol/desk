@@ -31,6 +31,14 @@ class Settings(BaseSettings):
     # Reporter sign-in with GitHub (an OAuth app; callback is {bounty host}/v1/reporter/auth/github/callback)
     github_oauth_client_id: str = Field(default="", alias="GITHUB_OAUTH_CLIENT_ID")
     github_oauth_client_secret: str = Field(default="", alias="GITHUB_OAUTH_CLIENT_SECRET")
+    # Discord: the support bot (token, guild, the channel the panel lives in, the role that answers) and
+    # reporter sign-in with Discord (the same application's OAuth2 client secret; client id = app id).
+    discord_bot_token: str = Field(default="", alias="DISCORD_BOT_TOKEN")
+    discord_app_id: str = Field(default="", alias="DISCORD_APP_ID")
+    discord_oauth_client_secret: str = Field(default="", alias="DISCORD_OAUTH_CLIENT_SECRET")
+    discord_guild_id: int = Field(default=0, alias="DISCORD_GUILD_ID")
+    discord_support_channel_id: int = Field(default=0, alias="DISCORD_SUPPORT_CHANNEL_ID")
+    discord_support_role_id: int = Field(default=0, alias="DISCORD_SUPPORT_ROLE_ID")
     # Filing limits
     max_attachment_mb: int = Field(default=10, alias="DESK_MAX_ATTACHMENT_MB")
     max_attachments: int = Field(default=5, alias="DESK_MAX_ATTACHMENTS")
@@ -53,6 +61,14 @@ class Settings(BaseSettings):
     @property
     def sync_database_url(self) -> str:
         return self.database_url.replace("+asyncpg", "+psycopg")
+
+    @property
+    def discord_bot_enabled(self) -> bool:
+        return bool(self.discord_bot_token and self.discord_guild_id and self.discord_support_channel_id)
+
+    @property
+    def discord_sign_in(self) -> bool:
+        return bool(self.discord_app_id and self.discord_oauth_client_secret)
 
     @property
     def public_host(self) -> str:

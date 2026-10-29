@@ -124,7 +124,7 @@
     <div class="templates" style="margin-bottom:8px">{% for name in cfg.reply_templates if (name.startswith("support_") if t.kind == "support" else not name.startswith("support_")) %}<button type="button" data-template="{{ name }}">{{ name.replace('support_', '').replace('_', ' ') }}</button>{% endfor %}</div>
     <textarea id="reply-body" placeholder="Written by a person, mirrored to the source channel. Nothing here promises an award."></textarea>
     <div class="row">
-      <span class="k">{% if t.source == "github" %}Mirrors to {{ t.source_repo }}#{{ t.source_ref }} as a comment.{% else %}Stays on the desk; the reporter is told by email when that is set up.{% endif %}</span>
+      <span class="k">{% if t.source == "github" %}Mirrors to {{ t.source_repo }}#{{ t.source_ref }} as a comment.{% elif t.source == "discord" %}Posted into the Discord thread by the bot, under your name.{% else %}Stays on the desk; the reporter sees it on this page and under their reports.{% endif %}</span>
       <button id="send-reply" type="button">Send reply</button>
     </div>
     <div class="msg" id="reply-msg" style="display:none"></div>
