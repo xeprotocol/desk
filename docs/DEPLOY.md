@@ -31,7 +31,7 @@ mkdir -p secrets
 
 Edit `.env`:
 
-- `POSTGRES_PASSWORD`: long random, ASCII letters and digits only (it is spliced into a URL and a `.env` line; `%`, `@`, `/`, `:`, `$`, `#` and non-ASCII all have meanings there).
+- `POSTGRES_PASSWORD`: long random, ASCII letters and digits only (it is spliced into a URL and a `.env` line; `%`, `@`, `/`, `:`, `$`, `#` and non-ASCII all have meanings there). Postgres reads it once, when the `pgdata` volume is first created; changing it in `.env` afterwards changes what the app sends, not what Postgres expects. To change it later: `docker compose exec db psql -U desk -d desk -c "ALTER USER desk PASSWORD 'the-new-one'"`, then `docker compose up -d --force-recreate app worker`.
 - `PUBLIC_BASE_URL`, `DESK_BOUNTY_HOST`, `DESK_SUPPORT_HOST`, `WEBAUTHN_RP_ID`: production values as in the example; for staging set both hosts to `desk.test.network` and the RP id to `test.network`.
 - `DESK_SIGNER_PASSPHRASE`: long random (12+ chars); it encrypts the keyfile that holds the log key and the vault key.
 - `GITHUB_TOKEN`: a fine-grained token with Issues read/write and Pull requests read on `xeprotocol/xe`, `xeprotocol/dao`, `xeprotocol/sdk`, and Issues read on the private `xeprotocol/core`. `GITHUB_BOT_LOGIN`: the account it belongs to.
@@ -58,8 +58,8 @@ Database tests (a scratch database the tests wipe):
 
 ```sh
 docker compose up -d --wait db            # --wait: returns once Postgres is healthy, not merely started
-docker compose exec db psql -U desk -d desk -c "CREATE DATABASE desk_test"
-docker compose run --rm -v $PWD/tests:/app/tests \
+docker compose exec db psql -U desk -d desk -c "CREATE DATABASE desk_test"   # "already exists" is fine
+docker compose run --rm --no-deps -v $PWD/tests:/app/tests \
   -e DESK_TEST_DATABASE_URL=postgresql+asyncpg://desk:$(grep ^POSTGRES_PASSWORD .env | cut -d= -f2)@db:5432/desk_test \
   app sh -c "pip install -q pytest pytest-asyncio && pytest -q tests/test_db.py"
 ```
