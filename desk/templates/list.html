@@ -1,19 +1,24 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m with context %}
-{% block title %}{{ title }}{% endblock %}
+{% block title %}{{ site_name }}{% endblock %}
 {% block content %}
 {% macro flt(name, value, label) -%}
   {%- set cur = f|attr(name) -%}
-  {%- set qs = {"kind": kind, "status": f.status, "area": f.area, "gate": f.gate, "tier": f.tier, "verdict": f.verdict, "sort": f.sort, "q": f.q, "pending": f.pending} -%}
+  {%- set qs = {"status": f.status, "area": f.area, "gate": f.gate, "tier": f.tier, "verdict": f.verdict, "sort": f.sort, "q": f.q, "pending": f.pending} -%}
   {%- set _ = qs.update({name: (None if cur == value and name not in ("status", "sort") else value)}) -%}
   <a href="/?{% for k, v in qs.items() if v not in (None, "", False) %}{{ k }}={{ v|urlencode }}&{% endfor %}" class="{{ 'on' if cur == value else '' }}">{{ label }}</a>
 {%- endmacro %}
 
 <div class="statement"><div>
-  <h1>{{ copy.headline if kind == "bounty" else "Questions, answered in the open." }}</h1>
-  <p class="punch">{{ copy.punchline }}</p>
+  <h1>{{ site_copy.headline }}</h1>
+  <p class="punch">{{ site_copy.punchline }}</p>
 </div></div>
-<p class="sub">{{ copy.sub }}</p>
+<p class="sub">{{ site_copy.sub }}</p>
+{% if kind == "support" %}
+<p class="sub k">{{ site_copy.ask }} {{ site_copy.crosslink.replace("{bounty_url}", bounty_url) }}</p>
+{% elif split %}
+<p class="sub k">{{ copy.bounty_crosslink.replace("{support_url}", support_url) }}</p>
+{% endif %}
 
 <div class="counts">
   <div><b>{{ counts.open }}</b>{{ copy.labels.open }}</div>
@@ -34,11 +39,10 @@
   {% endif %}
   <span class="sep">·</span>
   {{ flt("sort", "severity", "By severity") }}{{ flt("sort", "age", "By age") }}{{ flt("sort", "updated", "By update") }}
-  {% if team %}<span class="sep">·</span><a href="/?kind={{ kind }}&status=open&pending=true" class="{{ 'on' if f.pending }}">Pending proposals</a>{% endif %}
+  {% if team %}<span class="sep">·</span><a href="/?status=open&pending=true" class="{{ 'on' if f.pending }}">Pending proposals</a>{% endif %}
 </div>
 
 <form method="get" action="/" class="row" style="margin:0 0 20px">
-  <input type="hidden" name="kind" value="{{ kind }}">
   <input type="text" name="q" value="{{ f.q or '' }}" placeholder="search title, id, #issue, internal ref" style="max-width:420px">
   <button class="ghost mini" type="submit">Search</button>
 </form>
@@ -48,7 +52,7 @@
 {% else %}
 <table class="tickets">
 <thead><tr>
-  <th>#</th><th>Finding</th><th>Status</th>{% if kind == "bounty" %}<th>Tier</th><th>Gate</th><th>Eng.</th>{% endif %}<th>Source</th><th>Internal</th><th>PR</th><th class="right">Age</th>
+  <th>#</th><th>{{ "Question" if kind == "support" else "Finding" }}</th><th>Status</th>{% if kind == "bounty" %}<th>Tier</th><th>Gate</th><th>Eng.</th>{% endif %}<th>Source</th>{% if team or kind == "bounty" %}<th>Internal</th>{% endif %}{% if kind == "bounty" %}<th>PR</th>{% endif %}<th class="right">Age</th>
 </tr></thead>
 <tbody>
 {% for t in tickets %}
@@ -63,13 +67,13 @@
   <td class="mono">{{ cfg.effort_label(t.effort_eng) if t.effort_eng else "—" }}</td>
   {% endif %}
   <td>{{ m.source(t) }}</td>
-  <td class="mono">{{ t.internal_ref or "—" }}</td>
-  <td class="mono">{{ prs.get(t.id, "") }}</td>
+  {% if team or kind == "bounty" %}<td class="mono">{{ t.internal_ref or "—" }}</td>{% endif %}
+  {% if kind == "bounty" %}<td class="mono">{{ prs.get(t.id, "") }}</td>{% endif %}
   <td class="right num">{{ (t.source_created_at or t.created_at)|day }}</td>
 </tr>
 {% endfor %}
 </tbody>
 </table>
-<p class="k">{{ tickets|length }} shown. Tiers are the team's assessment where one has been made, the reporter's claim otherwise. The gate says whether a fix lands before mainnet. Append <code>.md</code> to this page for markdown.</p>
+<p class="k">{{ tickets|length }} shown. {% if kind == "bounty" %}Tiers are the team's assessment where one has been made, the reporter's claim otherwise. The gate says whether a fix lands before mainnet. {% endif %}Append <code>.md</code> to this page for markdown.</p>
 {% endif %}
 {% endblock %}

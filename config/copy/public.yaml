@@ -13,11 +13,29 @@ footer: XE Network
 footer_line: The bounty desk for the agent-native network, run in the open.
 kicker: Bounty
 punchline: Read in private. Answered in public. Paid at genesis.
+# Pointer shown on the bounty site, for people who arrived with a question rather than a bug.
+bounty_crosslink: Not a bug? Questions about nodes, wallets, the faucet or the network go to {support_url}.
+
+# The support site. Its own front door, its own copy: for people who run nodes, hold XE or are getting
+# started, not for security researchers. Nothing about tiers, awards or disclosure appears here.
+support:
+  headline: Questions, answered in the open.
+  punchline: Asked once. Answered for everyone.
+  sub: >-
+    Help with running a node, the wallet, the faucet, the testnet and the network itself. Every question
+    becomes a ticket, every answer is public, and what is answered once is searchable for the next person.
+  footer_line: Community support for the agent-native network, run in the open.
+  crosslink: Found a security bug? That is the bounty, at {bounty_url}. Report it there, not here.
+  ask: >-
+    Ask on GitHub for now; a web form follows in the next release. Questions arriving by email, Discord
+    or Telegram become tickets here.
 
 labels:
   tickets: Tickets
   bounty: Bounty
+  reports: Reports
   support: Support
+  questions: Questions
   leaderboard: Leaderboard
   log: Log
   scope: Scope

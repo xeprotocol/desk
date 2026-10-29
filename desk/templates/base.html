@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#ffffff">
 <meta name="referrer" content="no-referrer">
 {% if csrf %}<meta name="desk-csrf" content="{{ csrf }}">{% endif %}
-<title>{% block title %}{{ copy.site_name }}{% endblock %} · {{ badge }}</title>
+<title>{% block title %}{{ site_name }}{% endblock %} · {{ badge }}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
@@ -21,14 +21,18 @@
 <header>
   <div class="wrap">
     <nav>
-      <a class="brand" href="/" aria-label="{{ copy.site_name }}, home">{{ mark() }}<span class="word">{{ "Support" if site == "support" else "Bounty" }}</span> <span class="badge {{ badge }}">{{ badge }}</span></a>
-      <a href="/?kind=bounty" {% if path == "/" and kind == "bounty" %}class="active"{% endif %}>{{ copy.labels.bounty }}</a>
-      <a href="/?kind=support" {% if path == "/" and kind == "support" %}class="active"{% endif %}>{{ copy.labels.support }}</a>
+      <a class="brand" href="/" aria-label="{{ site_name }}, home">{{ mark() }}<span class="word">{{ "Support" if site == "support" else "Bounty" }}</span> <span class="badge {{ badge }}">{{ badge }}</span></a>
+      {# Two front doors, two menus. The bounty is for researchers; support is for people who run nodes and hold XE. Neither lists the other. #}
+      {% if site == "support" %}
+      <a href="/" {% if path == "/" %}class="active"{% endif %}>{{ copy.labels.questions }}</a>
+      {% else %}
+      <a href="/" {% if path == "/" %}class="active"{% endif %}>{{ copy.labels.reports }}</a>
       <a href="/scope" {% if path == "/scope" %}class="active"{% endif %}>{{ copy.labels.scope }}</a>
       <a href="/leaderboard" {% if path == "/leaderboard" %}class="active"{% endif %}>{{ copy.labels.leaderboard }}</a>
+      {% endif %}
       <a href="/log" {% if path.startswith("/log") %}class="active"{% endif %}>{{ copy.labels.log }}</a>
       {% if team %}
-      <a href="/team/release" {% if path == "/team/release" %}class="active"{% endif %}>{{ copy.labels.release }}</a>
+      {% if site == "bounty" %}<a href="/team/release" {% if path == "/team/release" %}class="active"{% endif %}>{{ copy.labels.release }}</a>{% endif %}
       <a href="/team/outbox" {% if path == "/team/outbox" %}class="active"{% endif %}>{{ copy.labels.outbox }}</a>
       <a href="/team/account" class="who" title="{{ p.user.email }}">{{ p.name }}</a>
       {% else %}
@@ -41,7 +45,7 @@
 {% block content %}{% endblock %}
 </div></main>
 <footer><div class="wrap">
-  <div class="brandline">{{ mark() }}<p>{{ copy.footer_line }}</p></div>
+  <div class="brandline">{{ mark() }}<p>{{ site_copy.footer_line }}</p></div>
   <div class="meta">
     <span>© 2026 {{ copy.footer }}</span>
     <span>·</span><span>{{ network_id or "node unreachable" }}</span>
@@ -51,6 +55,7 @@
     <span>·</span><a href="/llms.txt">llms.txt</a>
     <span>·</span><a href="/live">live</a>
     {% if head %}<span>·</span><a href="/v1/log/head">log head {{ head.hash|short }}</a>{% endif %}
+    {% if site == "support" %}<span>·</span><a href="{{ bounty_url }}">bug bounty</a>{% else %}<span>·</span><a href="{{ support_url }}">support</a>{% endif %}
     <span>·</span><a href="https://github.com/xeprotocol/xe/issues">github</a>
     <span>·</span><a href="https://xe.network">xe.network</a>
   </div>

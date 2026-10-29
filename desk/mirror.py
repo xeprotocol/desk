@@ -166,8 +166,11 @@ def _origin_from_scope(scope) -> str:
 # ---- llms.txt ---------------------------------------------------------------------------------------
 
 
-def build_llms_txt(cfg: Config, base_url: str, network_id: str) -> str:
-    """The reading list, per llmstxt.org: an H1, a blockquote summary, then sections of links."""
+def build_llms_txt(
+    cfg: Config, base_url: str, network_id: str, *, site: str = "bounty", other: str = ""
+) -> str:
+    """The reading list, per llmstxt.org: an H1, a blockquote summary, then sections of links. One per
+    front door: the bounty's lists the programme pages, the support site's only what it has."""
     b = base_url.rstrip("/")
     copy = cfg.copy_public
 
@@ -175,15 +178,65 @@ def build_llms_txt(cfg: Config, base_url: str, network_id: str) -> str:
         tail = f": {note}" if note else ""
         return f"- [{text}]({b}{path}){tail}"
 
+    common_api = [
+        "## API",
+        link("/v1", "Manifest", "JSON index of every endpoint, keys and config hashes"),
+        link("/v1/openapi.json", "OpenAPI", "the schema"),
+        link("/v1/log/head", "Log head", "the current tip of the log"),
+        link("/v1/log/verify", "Log verify", "walks the chain and reports"),
+        link("/v1/events?since=-1", "Events", "the log from an index; `/v1/events/stream` for SSE"),
+        "",
+        "## For agents",
+        "- `POST /v1/tickets/{id}/notes`: an internal note (scope `write:notes`)",
+        "- `POST /v1/tickets/{id}/proposals`: `{field, value, reason}`; a person adopts or rejects (scope `write:proposals`)",
+        "- `POST /v1/tickets/{id}/patch-refs`: link a PR or commit (scope `write:patch-refs`)",
+        "- No scope sends a reply, sets a status or an award, or reads a payout address.",
+        "",
+    ]
+    how = (
+        f"Network `{network_id}`. Every page here is also markdown: append `.md` to its path (the home page "
+        "is `/index.md`), or request it with `Accept: text/markdown`. The JSON API lives under `/v1`; `GET /v1` "
+        "lists it. Agents write with a bearer token: notes, proposals and patch links. People decide and reply."
+    )
+
+    if site == "support":
+        sc = copy.get("support") or {}
+        return "\n".join(
+            [
+                f"# {copy.get('support_name', 'XE Support')}",
+                "",
+                f"> {sc.get('headline', '')} {sc.get('sub', '')}".strip(),
+                "",
+                how,
+                "",
+                "## Start here",
+                link("/index.md", "Open questions", "every public support ticket, newest first"),
+                link("/log.md", "Log", "the hash-chained public log of everything the desk does"),
+                link("/live", "Live", "the log as it happens; `/v1/events/stream` is the stream itself"),
+                "",
+                "## Tickets",
+                link(
+                    "/support/XS-0001.md",
+                    "A ticket",
+                    "the question, the answer, the public thread; replace the id",
+                ),
+                link("/v1/tickets?kind=support&status=open", "Tickets JSON", "the same list, filterable"),
+                "",
+                *common_api,
+                "## Optional",
+                f"- [Bug bounty]({other}): security bugs are reported there, not here" if other else "",
+                "- [xe.network](https://xe.network): the network this serves",
+                "",
+            ]
+        )
+
     return "\n".join(
         [
-            f"# {copy.get('site_name', 'XE Desk')}",
+            f"# {copy.get('bounty_name', copy.get('site_name', 'XE Desk'))}",
             "",
             f"> {copy.get('headline', '')} {copy.get('sub', '')}".strip(),
             "",
-            f"Network `{network_id}`. Every page here is also markdown: append `.md` to its path (the home page "
-            "is `/index.md`), or request it with `Accept: text/markdown`. The JSON API lives under `/v1`; `GET /v1` "
-            "lists it. Agents write with a bearer token: notes, proposals and patch links. People decide and reply.",
+            how,
             "",
             "## Start here",
             link("/index.md", "Open tickets", "every public report, most severe first"),
@@ -201,19 +254,7 @@ def build_llms_txt(cfg: Config, base_url: str, network_id: str) -> str:
             link("/v1/tickets?kind=bounty&status=open", "Tickets JSON", "the same list, filterable"),
             link("/v1/export/triage.md", "Triage export", "the whole desk as the triage tables"),
             "",
-            "## API",
-            link("/v1", "Manifest", "JSON index of every endpoint, keys and config hashes"),
-            link("/v1/openapi.json", "OpenAPI", "the schema"),
-            link("/v1/log/head", "Log head", "the current tip of the log"),
-            link("/v1/log/verify", "Log verify", "walks the chain and reports"),
-            link("/v1/events?since=-1", "Events", "the log from an index; `/v1/events/stream` for SSE"),
-            "",
-            "## For agents",
-            "- `POST /v1/tickets/{id}/notes`: an internal note (scope `write:notes`)",
-            "- `POST /v1/tickets/{id}/proposals`: `{field, value, reason}`; a person adopts or rejects (scope `write:proposals`)",
-            "- `POST /v1/tickets/{id}/patch-refs`: link a PR or commit (scope `write:patch-refs`)",
-            "- No scope sends a reply, sets a status or an award, or reads a payout address.",
-            "",
+            *common_api,
             "## Optional",
             "- [xe.network](https://xe.network): the network this serves",
             "- [xeprotocol/xe](https://github.com/xeprotocol/xe/issues): where public reports are filed",

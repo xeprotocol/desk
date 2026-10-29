@@ -64,6 +64,19 @@ def test_html_to_markdown_drops_chrome_and_keeps_table():
 
 def test_llms_txt_shape(config):
     txt = build_llms_txt(config, "https://bounty.xe.network", "testnet-0005")
-    assert txt.startswith("# XE Desk") and "> " in txt
+    assert txt.startswith("# XE Bounty") and "> " in txt
     assert "https://bounty.xe.network/index.md" in txt and "/v1/events/stream" in txt
+    assert "/scope.md" in txt and "/leaderboard.md" in txt
     assert lint_public_copy(config, [txt]) == []
+    # the support door has its own list: no scope, no tiers, no leaderboard, a pointer to the bounty
+    sup = build_llms_txt(
+        config,
+        "https://support.xe.network",
+        "testnet-0005",
+        site="support",
+        other="https://bounty.xe.network",
+    )
+    assert sup.startswith("# XE Support")
+    assert "https://support.xe.network/index.md" in sup and "kind=support" in sup
+    assert "/scope.md" not in sup and "/leaderboard.md" not in sup and "https://bounty.xe.network" in sup
+    assert lint_public_copy(config, [sup]) == []

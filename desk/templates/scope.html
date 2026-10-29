@@ -21,11 +21,11 @@
 <ul>{% for line in prog.terms %}<li>{{ line }}</li>{% endfor %}</ul>
 
 <h2>Areas</h2>
-<ul>{% for k, v in cfg.areas.items() %}<li><a href="/?kind=bounty&area={{ k }}">{{ v }}</a></li>{% endfor %}</ul>
+<ul>{% for k, v in cfg.areas.items() %}<li><a href="/?area={{ k }}">{{ v }}</a></li>{% endfor %}</ul>
 
 <h2>How a report moves</h2>
 <p><code>new → triaging → (needs-info ⇄) → accepted → fixing → patched → disclosed → awarded → paid</code>, or <code>closed</code> as duplicate, invalid, out of scope or withdrawn. Every move is in the <a href="/log">log</a>; every ticket says which internal ticket tracks its fix and which PR closed it.</p>
-<p><b>Before, decide, later.</b> The gate on a bounty ticket says whether its fix lands before mainnet, is a product decision still to be made, or can follow launch. The <a href="/?kind=bounty&gate=before">before</a> list is the release view.</p>
+<p><b>Before, decide, later.</b> The gate on a bounty ticket says whether its fix lands before mainnet, is a product decision still to be made, or can follow launch. The <a href="/?gate=before">before</a> list is the release view.</p>
 <p class="notice"><b>Private reports.</b> {{ copy.notices.private_ticket }}</p>
 <p class="notice"><b>Channels.</b> {{ copy.notices.no_poc_in_channels }}</p>
 <p class="notice"><b>This desk.</b> {{ copy.notices.in_scope }}</p>

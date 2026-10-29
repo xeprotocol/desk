@@ -78,6 +78,18 @@ def site_for(request: Request) -> str:
     )
 
 
+def site_url(c, site: str) -> str:
+    return f"{c.settings.scheme}://{c.settings.hosts[site]}"
+
+
+def other_site(request: Request, site: str, path: str) -> RedirectResponse | None:
+    """A page that belongs to the other front door redirects there, when the doors are separate hosts."""
+    c = get_context()
+    if site_for(request) == site or c.settings.hosts["bounty"] == c.settings.hosts["support"]:
+        return None
+    return RedirectResponse(f"{site_url(c, site)}{path}", status_code=302)
+
+
 async def principal(db, request: Request) -> tuple[Principal, str]:
     try:
         a = await resolve(db, request)
@@ -89,16 +101,23 @@ async def principal(db, request: Request) -> tuple[Principal, str]:
 def render(request: Request, name: str, ctx: dict, status_code: int = 200) -> HTMLResponse:
     c = get_context()
     p: Principal = ctx.get("p") or ANON
+    site = site_for(request)
+    copy = c.config.copy_public
     base = {
         "request": request,
-        "copy": c.config.copy_public,
+        "copy": copy,
         "cfg": c.config,
         "badge": c.node.badge,
         "network_id": c.node.network_id,
         "version": __version__,
         "hosts": c.settings.hosts,
         "scheme": c.settings.scheme,
-        "site": site_for(request),
+        "site": site,
+        "site_name": copy.get("support_name" if site == "support" else "bounty_name", copy.get("site_name")),
+        "site_copy": copy.get("support") or {} if site == "support" else copy,
+        "bounty_url": site_url(c, "bounty"),
+        "support_url": site_url(c, "support"),
+        "split": c.settings.hosts["bounty"] != c.settings.hosts["support"],
         "p": p,
         "team": p.is_team,
         "csrf": ctx.get("csrf", ""),
@@ -113,9 +132,12 @@ def render(request: Request, name: str, ctx: dict, status_code: int = 200) -> HT
 @router.get("/llms.txt", response_class=PlainTextResponse)
 async def llms_txt(request: Request):
     c = get_context()
-    base = f"{c.settings.scheme}://{c.settings.hosts[site_for(request)]}"
+    site = site_for(request)
     return PlainTextResponse(
-        build_llms_txt(c.config, base, c.node.network_id), media_type="text/plain; charset=utf-8"
+        build_llms_txt(
+            c.config, site_url(c, site), c.node.network_id, site=site, other=site_url(c, "bounty")
+        ),
+        media_type="text/plain; charset=utf-8",
     )
 
 
@@ -133,10 +155,11 @@ async def home(
     pending: bool | None = None,
     q: str | None = None,
     sort: str = "severity",
-    kind: str | None = None,
 ):
     c = get_context()
-    kind = kind or site_for(request)
+    kind = site_for(
+        request
+    )  # the front door decides: bounty reports on one host, support questions on the other
     async with session() as db:
         p, csrf = await principal(db, request)
         f = Filters(
@@ -170,19 +193,18 @@ async def home(
             "f": f,
             "kind": kind,
             "head": head,
-            "title": c.config.copy_public.get("bounty_name" if kind == "bounty" else "support_name"),
         },
     )
 
 
 @router.get("/bounty", response_class=HTMLResponse)
 async def bounty_list(request: Request):
-    return RedirectResponse("/?kind=bounty", status_code=302)
+    return other_site(request, "bounty", "/") or RedirectResponse("/", status_code=302)
 
 
 @router.get("/support", response_class=HTMLResponse)
 async def support_list(request: Request):
-    return RedirectResponse("/?kind=support", status_code=302)
+    return other_site(request, "support", "/") or RedirectResponse("/", status_code=302)
 
 
 # ---- a ticket ---------------------------------------------------------------------------------------
@@ -195,6 +217,9 @@ async def ticket_page(request: Request, tid: str):
     async with session() as db:
         p, csrf = await principal(db, request)
         t = await tsvc.get_for(db, p, tid)
+        if tsvc.ticket_url(c, t) != f"{site_url(c, site_for(request))}{request.url.path}":
+            # the other front door, or the kind changed since the link was made: one canonical URL per ticket
+            return RedirectResponse(tsvc.ticket_url(c, t), status_code=302)
         body = tsvc.body_for(c, t) if t.visibility == "public" or can(p, "read:private", t) else None
         if t.visibility == "private" and body is not None:
             await c.events.append(db, "ticket.read", p.actor, {"ticket": t.id}, ref=t.id, public=False)
@@ -241,6 +266,8 @@ async def ticket_page(request: Request, tid: str):
 
 @router.get("/scope", response_class=HTMLResponse)
 async def scope(request: Request):
+    if r := other_site(request, "bounty", "/scope"):
+        return r
     c = get_context()
     async with session() as db:
         p, csrf = await principal(db, request)
@@ -253,6 +280,8 @@ async def scope(request: Request):
 
 @router.get("/leaderboard", response_class=HTMLResponse)
 async def leaderboard(request: Request):
+    if r := other_site(request, "bounty", "/leaderboard"):
+        return r
     async with session() as db:
         p, csrf = await principal(db, request)
         rows = await tsvc.leaderboard(db)
