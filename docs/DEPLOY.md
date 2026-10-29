@@ -31,7 +31,7 @@ mkdir -p secrets
 
 Edit `.env`:
 
-- `POSTGRES_PASSWORD`: long random, no `%`.
+- `POSTGRES_PASSWORD`: long random, ASCII letters and digits only (it is spliced into a URL and a `.env` line; `%`, `@`, `/`, `:`, `$`, `#` and non-ASCII all have meanings there).
 - `PUBLIC_BASE_URL`, `DESK_BOUNTY_HOST`, `DESK_SUPPORT_HOST`, `WEBAUTHN_RP_ID`: production values as in the example; for staging set both hosts to `desk.test.network` and the RP id to `test.network`.
 - `DESK_SIGNER_PASSPHRASE`: long random (12+ chars); it encrypts the keyfile that holds the log key and the vault key.
 - `GITHUB_TOKEN`: a fine-grained token with Issues read/write and Pull requests read on `xeprotocol/xe`, `xeprotocol/dao`, `xeprotocol/sdk`, and Issues read on the private `xeprotocol/core`. `GITHUB_BOT_LOGIN`: the account it belongs to.
@@ -57,8 +57,8 @@ docker compose run --rm --no-deps -v $PWD/tests:/app/tests app \
 Database tests (a scratch database the tests wipe):
 
 ```sh
-docker compose up -d db
-docker compose exec db psql -U desk -c "CREATE DATABASE desk_test"
+docker compose up -d --wait db            # --wait: returns once Postgres is healthy, not merely started
+docker compose exec db psql -U desk -d desk -c "CREATE DATABASE desk_test"
 docker compose run --rm -v $PWD/tests:/app/tests \
   -e DESK_TEST_DATABASE_URL=postgresql+asyncpg://desk:$(grep ^POSTGRES_PASSWORD .env | cut -d= -f2)@db:5432/desk_test \
   app sh -c "pip install -q pytest pytest-asyncio && pytest -q tests/test_db.py"
@@ -70,8 +70,11 @@ Lint, if you want it: `docker compose run --rm --no-deps app sh -c "pip install 
 
 ## 3. Keys, migrate, first user
 
+The services mount `secrets/` read-only, so the one write it ever gets is done with plain `docker run` against the built image, not through compose:
+
 ```sh
-docker compose run --rm --no-deps -v $PWD/secrets:/app/secrets app desk keys init
+docker run --rm -v $PWD/secrets:/app/secrets --env-file .env desk-app desk keys init
+ls -l secrets/signer.json                  # -rw------- root
 ```
 
 Back up `secrets/signer.json` and the passphrase separately. Losing the vault key loses every private report; losing the log key means future entries are unsigned (the chain still verifies by hash).
@@ -124,6 +127,21 @@ docker compose logs -f worker                # github poll, outbox, push, health
 
 Upgrade: `git pull && export GIT_COMMIT=$(git rev-parse --short HEAD) && docker compose build && docker compose up -d`. The `migrate` service runs before `app` and `worker` start.
 
-## 8. Backups
+## 8. If a page is blank
+
+Caddy answers an empty 502 when nothing is listening on 8010, and an empty 200 if it has no site block for the host; both look like a white page. In order:
+
+```sh
+docker compose ps                                   # app and worker "Up", migrate "Exited (0)"
+docker compose logs --tail=50 app                   # the last lines say "Uvicorn running on 0.0.0.0:8000"
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8010/v1/health   # 200 from the app itself
+curl -sI -H 'Host: bounty.xe.network' http://127.0.0.1:8010/ | head -3    # 200 text/html
+caddy validate --config /etc/caddy/Caddyfile && systemctl status caddy --no-pager | head -5
+curl -sI https://bounty.xe.network/ | head -3       # through Caddy
+```
+
+If `docker compose ps` shows no `app`, it was never started: `docker compose up -d`. If `app` is restarting, the log says why; the usual causes are a wrong `POSTGRES_PASSWORD` (the URL is built from it) or `migrate` having failed. If the app answers on 8010 but the domain does not, the problem is Caddy or DNS, not the desk.
+
+## 9. Backups
 
 `pgdata` (Postgres) and `blobs` (attachments) are compose volumes; `secrets/` is a bind mount. A nightly `pg_dump` plus a copy of `secrets/signer.json` is the whole backup. Without the keyfile, the dump's private bodies are unreadable, which is the point.

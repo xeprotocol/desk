@@ -25,9 +25,9 @@ def test_gate_and_verdict_counts(triage_text):
     rows, _ = _rows(triage_text)
     gates = Counter(r.gate for r in rows)
     # 35 rows carry **Before** in the per-issue tables (the summary table's "32 + 1 decision" counts
-    # fixes, not rows: #104 is a design ticket and #57 a release-process item). The importer keeps
-    # what the row says; "via #n" cells are duplicates and carry no gate of their own.
-    assert gates["before"] == 35 and gates["later"] == 29 and gates["decide"] == 0
+    # fixes, not rows: #104 is a design ticket and #57 a release-process item); #21 is the one
+    # **Decide**. The importer keeps what the row says; "via #n" cells are duplicates with no gate.
+    assert gates["before"] == 35 and gates["later"] == 29 and gates["decide"] == 1
     assert sum(1 for r in rows if r.duplicate_of_key) == 8
     verdicts = Counter(r.verdict for r in rows)
     assert (
@@ -42,7 +42,9 @@ def test_gate_and_verdict_counts(triage_text):
 
 def test_cto_rulings_are_the_assessed_tier(triage_text):
     _, by = _rows(triage_text)
-    assert (by["8"].claimed_tier, by["8"].assessed_tier, by["8"].gate) == ("high", "severe", "before")
+    # #8 is a bundle: the row says "mixed → Severe", so no single claimed tier; the first reading (High)
+    # is in the reconciliation table and lands in the note
+    assert (by["8"].claimed_tier, by["8"].assessed_tier, by["8"].gate) == (None, "severe", "before")
     assert (by["4"].claimed_tier, by["4"].assessed_tier) == ("severe", "high")
     assert (by["96"].claimed_tier, by["96"].assessed_tier) == ("high", "medium")
     assert (by["E2"].assessed_tier, by["E2"].gate) == ("medium", "before")
@@ -59,7 +61,8 @@ def test_internal_column(triage_text):
         ["#1029"],
     )
     assert (by["70"].internal_ref, by["70"].internal_state) == ("#1030", "partial")
-    assert (by["81"].internal_ref, by["81"].internal_state) == ("#870", "exists")
+    assert (by["58"].internal_ref, by["58"].internal_state) == ("#870", "exists")
+    assert (by["81"].internal_ref, by["81"].internal_state) == ("#1047", "open")
     assert (by["42"].internal_ref, by["42"].internal_state, by["42"].internal_fix_prs) == (
         "#954",
         "fixed",
@@ -103,7 +106,7 @@ def test_patches_and_effort(triage_text):
     assert [(p.repo, p.ref) for p in by["15"].patches] == [("xeprotocol/xe", "27"), ("xeprotocol/xe", "111")]
     assert [(p.repo, p.ref, p.note) for p in by["21"].patches] == [("xeprotocol/xe", "25", "partial")]
     assert [(p.repo, p.ref, p.note) for p in by["101"].patches] == [("xeprotocol/dao", "1", "third party")]
-    assert [(p.repo, p.ref) for p in by["102"].patches] == [("xeprotocol/sdk", "12")]
+    assert [(p.repo, p.ref) for p in by["102"].patches] == [("xeprotocol/sdk", "11")]
     assert [(p.repo, p.ref, p.note) for p in by["55"].patches] == [("xeprotocol/xe", "56", "wrong repo")]
     assert by["15"].effort == "<1h" and by["42"].effort == "3-5d" and by["59"].effort == "half-1d"
     assert by["21"].effort == "design"
