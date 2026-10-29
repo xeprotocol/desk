@@ -110,17 +110,38 @@ class DeskBot(discord.Client):
         self.guild = discord.Object(id=self.s.discord_guild_id)
         self.topic_blurbs: dict[str, str] = (ctx.config.copy_public.get("support") or {}).get("topics") or {}
         self._mirror_task: asyncio.Task | None = None
+        self.commands_ok = False
         self._register_commands()
 
     # ---- lifecycle -------------------------------------------------------------------------
 
     async def setup_hook(self):
         self.add_view(PanelView(self))
-        await self.tree.sync(guild=self.guild)
+        self.commands_ok = await self.sync_commands()
         self._mirror_task = asyncio.create_task(self.mirror_loop())
+
+    async def sync_commands(self) -> bool:
+        try:
+            await self.tree.sync(guild=self.guild)
+            return True
+        except discord.Forbidden:
+            log.error(
+                "cannot register slash commands in guild %s (403 Missing Access). Either the bot was invited "
+                "without the `applications.commands` scope, or DISCORD_GUILD_ID is not the server it is in. "
+                "Re-invite with scopes `bot applications.commands`; the bot keeps running and retries.",
+                self.s.discord_guild_id,
+            )
+            return False
 
     async def on_ready(self):
         log.info("discord bot up as %s; guild %s", self.user, self.s.discord_guild_id)
+        guild = self.get_guild(self.s.discord_guild_id)
+        if guild is None:
+            log.error("the bot is not in guild %s; check DISCORD_GUILD_ID and the invite", self.s.discord_guild_id)
+        else:
+            log.info("in %s; support channel %s", guild.name, self.s.discord_support_channel_id)
+        if not self.commands_ok:
+            self.commands_ok = await self.sync_commands()
 
     # ---- helpers ---------------------------------------------------------------------------
 
@@ -223,11 +244,15 @@ class DeskBot(discord.Client):
 
     async def mirror_loop(self):
         await self.wait_until_ready()
+        n = 0
         while not self.is_closed():
             try:
                 await self.mirror_once()
             except Exception as e:
                 log.warning("mirror: %s", e)
+            n += 1
+            if not self.commands_ok and n % 60 == 0:  # every five minutes, until the invite is fixed
+                self.commands_ok = await self.sync_commands()
             await asyncio.sleep(5)
 
     async def _thread(self, ref: str) -> discord.Thread | None:
@@ -408,7 +433,12 @@ async def main():
         loop.add_signal_handler(sig, lambda: asyncio.create_task(bot.close()))
     try:
         await bot.start(ctx.settings.discord_bot_token)
+    except discord.LoginFailure:
+        log.error("DISCORD_BOT_TOKEN was rejected; copy it again from the Bot tab")
+    except discord.PrivilegedIntentsRequired:
+        log.error("turn on the Message Content intent on the Bot tab, then restart")
     finally:
+        await bot.close()
         await ctx.aclose()
 
 
