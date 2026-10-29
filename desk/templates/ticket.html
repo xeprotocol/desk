@@ -148,16 +148,16 @@
   </section>
 
   <section class="notes">
-    <h3>Internal notes</h3>
-    {% if not notes %}<p class="k">None yet.</p>{% endif %}
-    {% for n in notes %}
-    <div class="note"><div class="by"><b>{{ n.author_name or n.author }}</b>{% if n.author.startswith("token:") and owners.get(n.author[6:]|int) %}<span class="for">for {{ owners[n.author[6:]|int] }}</span>{% endif %}<span>{{ n.created_at|dt }}</span></div><div class="body md">{{ n.body|md_note }}</div></div>
-    {% endfor %}
-    <div class="compose" style="margin-top:14px">
+    <h3>Internal notes <span class="k">newest first</span></h3>
+    <div class="compose" style="margin-bottom:18px">
       <textarea id="note-body" placeholder="Internal. Never leaves the desk. Markdown is fine."></textarea>
       <div class="row"><span></span><button class="ghost mini" id="add-note" type="button">Add note</button></div>
       <div class="msg" id="note-msg" style="display:none"></div>
     </div>
+    {% if not notes %}<p class="k">None yet.</p>{% endif %}
+    {% for n in notes|reverse %}
+    <div class="note"><div class="by"><b>{{ n.author_name or n.author }}</b>{% if n.author.startswith("token:") and owners.get(n.author[6:]|int) %}<span class="for">for {{ owners[n.author[6:]|int] }}</span>{% endif %}<span>{{ n.created_at|dt }}</span></div><div class="body md">{{ n.body|md_note }}</div></div>
+    {% endfor %}
   </section>
 </section>
 {% endif %}
