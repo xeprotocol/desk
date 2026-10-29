@@ -259,7 +259,9 @@ async def test_triage_import_of_the_real_doc(ctx, db, triage_text):
         tickets["99"].kind == "support"
         and tickets["99"].status == "closed"
         and tickets["99"].internal_ref == "faucet#10"
+        and tickets["99"].area == "testnet-faucet"  # a support row takes a topic, not a bounty area
     )
+    assert tickets["57"].area == "ops-testnet"
     assert tickets["8"].assessed_tier == "severe" and tickets["8"].claimed_tier is None  # "mixed" bundle
     assert tickets["21"].mainnet_gate == "decide" and tickets["21"].status == "accepted"
     gates = Counter(t.mainnet_gate for t in tickets.values())
