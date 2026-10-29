@@ -96,6 +96,13 @@ async def passkeys_for(db: AsyncSession, u: User) -> list[Passkey]:
     )
 
 
+async def token_owners(db: AsyncSession) -> dict[int, str]:
+    """Token id -> the name of the human it belongs to. Resolved at read time, so it covers every note and
+    proposal ever written and follows renames."""
+    rows = await db.execute(select(AgentToken.id, User.name, User.email).join(User, User.id == AgentToken.owner_id))
+    return {tid: (name or email) for tid, name, email in rows.all()}
+
+
 async def tokens_for(db: AsyncSession, u: User | None = None) -> list[AgentToken]:
     q = select(AgentToken).order_by(AgentToken.created_at.desc())
     if u is not None:

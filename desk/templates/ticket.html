@@ -135,7 +135,7 @@
       <div class="f">{{ pr.field.replace('_', ' ') }}{% if pr.field == "assessed_tier" and not can_tier %} <span class="pill private">tier role</span>{% endif %}</div>
       <div class="v">{% if pr.field == "reply_draft" %}<span class="k">draft, {{ pr.value.value|length }} chars</span>{% elif pr.field == "assessed_tier" or pr.field == "claimed_tier" %}{{ m.tier(pr.value.value) }}{% else %}{{ pr.value.value }}{% endif %}</div>
       {% if pr.reason %}<div class="r">{{ pr.reason }}</div>{% endif %}
-      <div class="by">#{{ pr.id }} · token {{ pr.token_id }} · {{ pr.created_at|dt }}{% if pr.state != "pending" %} · {{ pr.state }}{% if pr.decided_at %} {{ pr.decided_at|dt }}{% endif %}{% endif %}</div>
+      <div class="by">#{{ pr.id }} · token {{ pr.token_id }}{% if owners.get(pr.token_id) %} <span class="for">for {{ owners[pr.token_id] }}</span>{% endif %} · {{ pr.created_at|dt }}{% if pr.state != "pending" %} · {{ pr.state }}{% if pr.decided_at %} {{ pr.decided_at|dt }}{% endif %}{% endif %}</div>
       {% if team and pr.state == "pending" %}
       <div class="acts">
         <button type="button" data-adopt="{{ pr.id }}" {{ "disabled" if pr.field == "assessed_tier" and not can_tier }}>{{ "Use as draft" if pr.field == "reply_draft" else "Adopt" }}</button>
@@ -151,7 +151,7 @@
     <h3>Internal notes</h3>
     {% if not notes %}<p class="k">None yet.</p>{% endif %}
     {% for n in notes %}
-    <div class="note"><div class="by"><b>{{ n.author_name or n.author }}</b><span>{{ n.created_at|dt }}</span></div><div class="body md">{{ n.body|md_note }}</div></div>
+    <div class="note"><div class="by"><b>{{ n.author_name or n.author }}</b>{% if n.author.startswith("token:") and owners.get(n.author[6:]|int) %}<span class="for">for {{ owners[n.author[6:]|int] }}</span>{% endif %}<span>{{ n.created_at|dt }}</span></div><div class="body md">{{ n.body|md_note }}</div></div>
     {% endfor %}
     <div class="compose" style="margin-top:14px">
       <textarea id="note-body" placeholder="Internal. Never leaves the desk. Markdown is fine."></textarea>

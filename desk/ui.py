@@ -264,6 +264,7 @@ async def ticket_page(request: Request, tid: str):
         dup = await tsvc.get(db, t.duplicate_of) if t.duplicate_of else None
         events = await EventLog.page(db, 0, 50, ref=t.id, public_only=not can(p, "read:private", t))
         team_users = await users.list_users(db) if p.is_team else []
+        owners = await users.token_owners(db) if (notes or proposals) else {}
         reporter = (
             (await db.execute(select(Reporter).where(Reporter.id == t.reporter_id))).scalar_one_or_none()
             if t.reporter_id
@@ -288,6 +289,7 @@ async def ticket_page(request: Request, tid: str):
             "dup": dup,
             "events": events,
             "team_users": team_users,
+            "owners": owners,
             "reporter": reporter,
             "mine": mine,
             "attachments": attachments,
