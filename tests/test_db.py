@@ -234,6 +234,43 @@ async def test_agent_proposes_human_adopts(ctx, db):
     assert not any("Thanks, reproduced" in str(e.payload) for e in pub), "drafts never land in the public log"
 
 
+# ---- github sync ------------------------------------------------------------------------------------
+
+
+def _issue(number, title, body="", state="open", login="ada", **kw):
+    return {
+        "number": number, "title": title, "body": body, "state": state, "labels": [], "comments": 0,
+        "html_url": f"https://github.com/xeprotocol/xe/issues/{number}", "created_at": "2026-10-20T10:00:00Z",
+        "updated_at": "2026-10-20T10:00:00Z", "user": {"login": login, "id": 7}, **kw,
+    }
+
+
+async def test_internal_tracker_moves_a_new_ticket_through_triaging(ctx, db):
+    t, created = await sync.upsert_issue(ctx, db, "xeprotocol/xe", _issue(63, "Explorer search bar"))
+    assert created and t.status == "new"
+    # the tracker names it while open: new -> triaging -> accepted, not a forbidden jump
+    stats = await sync.link_internal_issue(ctx, db, _issue(1068, "security: bounty bundle xe#63"))
+    assert stats["linked"] == 1 and stats["moved"] == 1
+    assert t.status == "accepted" and t.internal_ref == "#1068"
+    # closed as completed: patched, and into the outbox
+    stats = await sync.link_internal_issue(
+        ctx, db, _issue(1068, "security: bounty bundle xe#63", state="closed", state_reason="completed")
+    )
+    assert stats["moved"] == 1 and t.status == "patched"
+    # a ticket past the tracker's reach is left where it is
+    t2, _ = await sync.upsert_issue(ctx, db, "xeprotocol/xe", _issue(64, "Another report"))
+    team = await _team(ctx, db)
+    for st in ("triaging", "accepted", "patched", "awarded", "paid"):
+        await tsvc.set_status(ctx, db, team, t2, st, force=True)
+    done = _issue(1069, "bundle xe#64", state="closed", state_reason="completed")
+    stats = await sync.link_internal_issue(ctx, db, done)
+    assert stats["moved"] == 0 and t2.status == "paid"
+    # importing the same issue again finds the ticket; nothing is created twice
+    await db.commit()
+    other = await sync.upsert_issue(ctx, db, "xeprotocol/xe", _issue(63, "Explorer search bar"))
+    assert other[0].id == t.id and other[1] is False
+
+
 # ---- triage import ----------------------------------------------------------------------------------
 
 

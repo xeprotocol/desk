@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
+from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -244,7 +245,12 @@ async def link_internal_issue(ctx: Context, db: AsyncSession, issue: dict) -> di
             if await _note_once(ctx, db, t, f"Internal ticket {ref} also names this report ({repo})."):
                 stats["noted"] += 1
             continue
-        stats["moved"] += int(await _follow_internal_state(ctx, db, t, issue, via))
+        try:
+            stats["moved"] += int(await _follow_internal_state(ctx, db, t, issue, via))
+        except HTTPException as e:
+            # a ticket the tracker cannot move (closed, paid, a kind that has no such path): note it, go on
+            log.warning("internal %s cannot move %s: %s", ref, t.id, e.detail)
+            stats["noted"] += int(await _note_once(ctx, db, t, f"Internal ticket {ref} changed; {e.detail}."))
     return stats
 
 
@@ -256,7 +262,7 @@ async def _follow_internal_state(ctx: Context, db: AsyncSession, t: Ticket, issu
     ref = f"#{issue['number']}"
     if state == "open":
         if t.status in ("new", "triaging", "needs-info"):
-            await tsvc.set_status(ctx, db, SYSTEM, t, "accepted", reason=f"internal {ref} open", via=via)
+            await _accept(ctx, db, t, f"internal {ref} open", via)
             return True
         return False
     if reason == "not_planned":
@@ -268,10 +274,18 @@ async def _follow_internal_state(ctx: Context, db: AsyncSession, t: Ticket, issu
         return True
     if t.status in ("new", "triaging", "needs-info"):
         # fixed before the desk ever ruled: accept, then patch, so the history reads honestly
-        await tsvc.set_status(ctx, db, SYSTEM, t, "accepted", reason=f"internal {ref} closed", via=via)
+        await _accept(ctx, db, t, f"internal {ref} closed", via)
         await tsvc.set_status(ctx, db, SYSTEM, t, "patched", reason=f"internal {ref} closed", via=via)
         return True
     return False
+
+
+async def _accept(ctx: Context, db: AsyncSession, t: Ticket, reason: str, via: str) -> None:
+    """Accept along the allowed path. A `new` ticket passes through `triaging` first, as a person would
+    have to; the tracker naming it is the triage."""
+    if t.status == "new":
+        await tsvc.set_status(ctx, db, SYSTEM, t, "triaging", reason=reason, via=via)
+    await tsvc.set_status(ctx, db, SYSTEM, t, "accepted", reason=reason, via=via)
 
 
 async def _note_once(ctx: Context, db: AsyncSession, t: Ticket, body: str) -> bool:
