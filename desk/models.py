@@ -300,6 +300,10 @@ class IdCounter(Base):
 
 class Ticket(Base):
     __tablename__ = "tickets"
+    # updated_at is set by the database on UPDATE. Without this, SQLAlchemy expires it at flush and the
+    # first read after commit (to_dict in the status/award/facts routes) tries an implicit refresh, which an
+    # async session cannot do: MissingGreenlet, a 500 after the write has already landed. RETURNING instead.
+    __mapper_args__ = {"eager_defaults": True}
     # One ticket per external thing (github issue, email message id). Tickets filed on the desk itself
     # have no external ref, so the index is partial: rows with an empty source_ref are not constrained.
     __table_args__ = (
@@ -477,6 +481,7 @@ class Attachment(Base):
 
 class SyncCursor(Base):
     __tablename__ = "sync_cursors"
+    __mapper_args__ = {"eager_defaults": True}  # same reason as Ticket: updated_at is server-set on UPDATE
     key: Mapped[str] = mapped_column(String(128), primary_key=True)  # github:owner/repo:issues
     value: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     detail: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)

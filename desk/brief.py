@@ -152,6 +152,55 @@ def build_agent_brief(
     )
     add("")
 
+    add("## Suggesting an award")
+    add("")
+    add(
+        _p(
+            "There is no proposal field for the award; a person sets it. Your job is to make that decision",
+            "easy. Once the verdict is `valid` or `likely-valid` and a tier is set or you are proposing one,",
+            "end your note with one line:",
+        )
+    )
+    add("")
+    add("> **Award:** 2,000 XE (Medium, ceiling 2,500). Top of the band: precise, right fix suggested.")
+    add("")
+    add("The amount, the tier and its ceiling, where in the band, and why in a clause. What moves it:")
+    add("")
+    add(
+        _p(
+            "- **Up**: the report gives the full picture and the right fix, so the team has nothing to add;",
+            "a live reproduction; impact stated honestly, including what it is bounded by.",
+        )
+    )
+    add(
+        _p(
+            "- **Down**: the team had to find half of the consequence; the fix suggested is wrong; the report",
+            "stops at the symptom.",
+        )
+    )
+    add(
+        _p(
+            "- **Over-claiming a tier** costs the top of the band it lands in, never a drop below the midpoint;",
+            "the finding is paid on what it is.",
+        )
+    )
+    add(
+        _p(
+            "- **Duplicates** pay once, to the first verifiable report; later patches and comments do not",
+            "change who is paid.",
+        )
+    )
+    add("")
+    add(
+        _p(
+            "One recommendation per ticket per pass; if you revise it, say what changed. If the thread",
+            "carries a payout address that differs from the one in the report body, say so in the note: the",
+            "report is the submission and its address is the one that counts. The amount is for the note",
+            "and nowhere else; it never appears in a reply draft or a public thread.",
+        )
+    )
+    add("")
+
     add("## Proposals")
     add("")
     add(

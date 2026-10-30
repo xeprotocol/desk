@@ -2,7 +2,13 @@
 of the actual doc. Skipped unless DESK_TEST_DATABASE_URL is set, e.g.
 DESK_TEST_DATABASE_URL=postgresql+asyncpg://desk:pw@db:5432/desk_test (a scratch database; it is wiped).
 
-Run on the VPS:  docker compose exec -e DESK_TEST_DATABASE_URL=... app pytest tests/test_db.py -q
+The image carries neither pytest nor this directory; mount the tests and install pytest for the run.
+Run on the VPS (see docs/DEPLOY.md):
+
+  docker compose exec db psql -U desk -d desk -c "CREATE DATABASE desk_test"   # "already exists" is fine
+  docker compose run --rm --no-deps -v $PWD/tests:/app/tests \
+    -e DESK_TEST_DATABASE_URL=postgresql+asyncpg://desk:$(grep ^POSTGRES_PASSWORD .env | cut -d= -f2)@db:5432/desk_test \
+    app sh -c "pip install -q pytest pytest-asyncio && pytest -q tests/test_db.py"
 """
 
 import hashlib
@@ -149,6 +155,11 @@ async def test_ticket_lifecycle(ctx, db):
     await tsvc.set_award(ctx, db, p, t, 5_000_000_000, approve=True)
     await tsvc.set_status(ctx, db, p, t, "awarded")
     await db.commit()
+    # The status/award routes return to_dict after commit. updated_at is server-set on UPDATE; without
+    # eager_defaults it is expired at flush and this read would be an implicit refresh, which an async
+    # session turns into MissingGreenlet: a 500 after the write landed. Must read cleanly here.
+    d = tsvc.to_dict(ctx, t, p)
+    assert d["status"] == "awarded" and d["award_xe"] == 5_000_000_000 and d["updated_at"]
     board = await tsvc.leaderboard(db)
     assert board == []  # no reporter attached
     kinds = Counter(e.kind for e in await EventLog.page(db, 0, 100, ref=t.id))
