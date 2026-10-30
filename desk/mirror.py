@@ -224,7 +224,7 @@ def build_llms_txt(
                 "",
                 "## Tickets",
                 link(
-                    "/support/XS-0001.md",
+                    "/XS-0001.md",
                     "A ticket",
                     "the question, the answer, the public thread; replace the id",
                 ),
@@ -260,7 +260,7 @@ def build_llms_txt(
             link("/live", "Live", "the log as it happens; `/v1/events/stream` is the stream itself"),
             "",
             "## Tickets",
-            link("/bounty/XE-0001.md", "A ticket", "facts, patches, and the public thread; replace the id"),
+            link("/XE-0001.md", "A ticket", "facts, patches, and the public thread; replace the id"),
             link("/v1/tickets?kind=bounty&status=open", "Tickets JSON", "the same list, filterable"),
             link("/v1/export/triage.md", "Triage export", "the whole desk as the triage tables"),
             "",

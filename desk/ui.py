@@ -4,6 +4,7 @@ JSON API with the session cookie and CSRF header, never through forms."""
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -30,6 +31,7 @@ from .services import tickets as tsvc
 from .services.tickets import Filters
 
 router = APIRouter(include_in_schema=False)
+TICKET_ID = re.compile(r"X[ES]-\d{4,}", re.IGNORECASE)
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 _md = MarkdownIt("commonmark", {"html": False, "linkify": False}).enable("table")
@@ -243,63 +245,15 @@ async def support_list(request: Request):
 # ---- a ticket ---------------------------------------------------------------------------------------
 
 
-@router.get("/bounty/{tid}", response_class=HTMLResponse)
-@router.get("/support/{tid}", response_class=HTMLResponse)
-async def ticket_page(request: Request, tid: str):
+@router.get("/bounty/{tid}", include_in_schema=False)
+@router.get("/support/{tid}", include_in_schema=False)
+async def ticket_page_old_path(request: Request, tid: str):
+    """The original URL shape, kept forever: links to it are in GitHub threads and chat."""
     c = get_context()
     async with session() as db:
-        p, csrf = await principal(db, request)
+        p, _ = await principal(db, request)
         t = await tsvc.get_for(db, p, tid)
-        if tsvc.ticket_url(c, t) != f"{site_url(c, site_for(request))}{request.url.path}":
-            # the other front door, or the kind changed since the link was made: one canonical URL per ticket
-            return RedirectResponse(tsvc.ticket_url(c, t), status_code=302)
-        body = tsvc.body_for(c, t) if t.visibility == "public" or can(p, "read:private", t) else None
-        if t.visibility == "private" and body is not None:
-            await c.events.append(db, "ticket.read", p.actor, {"ticket": t.id}, ref=t.id, public=False)
-            await db.commit()
-        messages = [(m, thread.message_body(c, t, m)) for m in await thread.messages_for(db, t)]
-        patches = await thread.patches_for(db, t)
-        notes = await thread.notes_for(db, t) if can(p, "read:notes", t) else []
-        proposals = await psvc.pending_for(db, t) if can(p, "read:notes", t) else []
-        replies = await thread.replies_for(db, t) if p.is_team else []
-        dup = await tsvc.get(db, t.duplicate_of) if t.duplicate_of else None
-        events = await EventLog.page(db, 0, 50, ref=t.id, public_only=not can(p, "read:private", t))
-        team_users = await users.list_users(db) if p.is_team else []
-        owners = await users.token_owners(db) if (notes or proposals) else {}
-        reporter = (
-            (await db.execute(select(Reporter).where(Reporter.id == t.reporter_id))).scalar_one_or_none()
-            if t.reporter_id
-            else None
-        )
-        me = getattr(request.state, "reporter", None)
-        mine = rsvc.owns(me, t)
-        attachments = await rsvc.attachments_for(db, t) if (p.is_team or mine) else []
-    return render(
-        request,
-        "ticket.html",
-        {
-            "p": p,
-            "csrf": csrf,
-            "t": t,
-            "body": body,
-            "messages": messages,
-            "patches": patches,
-            "notes": notes,
-            "proposals": proposals,
-            "replies": replies,
-            "dup": dup,
-            "events": events,
-            "team_users": team_users,
-            "owners": owners,
-            "reporter": reporter,
-            "mine": mine,
-            "attachments": attachments,
-            "can_withdraw": mine and t.status in rsvc.OPEN_FOR_REPORTER,
-            "url": tsvc.ticket_url(c, t),
-            "internal_url": c.settings.internal_url(t.internal_ref),
-            "tier_fields": ("assessed_tier",),
-        },
-    )
+    return RedirectResponse(tsvc.ticket_url(c, t), status_code=301)
 
 
 # ---- public pages -----------------------------------------------------------------------------------
@@ -544,3 +498,67 @@ async def outbox(request: Request):
             return RedirectResponse("/team/login?next=/team/outbox", status_code=302)
         rows = await tsvc.outbox(db, c.config, p)
     return render(request, "team/outbox.html", {"p": p, "csrf": csrf, "tickets": rows})
+
+
+# ---- a ticket, last: /{id} is the only single-segment catch-all and must not shadow the pages above ----
+
+
+@router.get("/{tid}", response_class=HTMLResponse)
+async def ticket_page(request: Request, tid: str):
+    """A ticket lives at the bare id on its front door: /XE-0032, /XS-0001. The id already says which kind."""
+    if not TICKET_ID.fullmatch(tid):
+        raise HTTPException(404, "not found")
+    c = get_context()
+    async with session() as db:
+        p, csrf = await principal(db, request)
+        t = await tsvc.get_for(db, p, tid.upper())
+        if tsvc.ticket_url(c, t) != f"{site_url(c, site_for(request))}{request.url.path}":
+            # the other front door, lower-case, or the kind changed since the link was made: one canonical URL per ticket
+            return RedirectResponse(tsvc.ticket_url(c, t), status_code=302)
+        body = tsvc.body_for(c, t) if t.visibility == "public" or can(p, "read:private", t) else None
+        if t.visibility == "private" and body is not None:
+            await c.events.append(db, "ticket.read", p.actor, {"ticket": t.id}, ref=t.id, public=False)
+            await db.commit()
+        messages = [(m, thread.message_body(c, t, m)) for m in await thread.messages_for(db, t)]
+        patches = await thread.patches_for(db, t)
+        notes = await thread.notes_for(db, t) if can(p, "read:notes", t) else []
+        proposals = await psvc.pending_for(db, t) if can(p, "read:notes", t) else []
+        replies = await thread.replies_for(db, t) if p.is_team else []
+        dup = await tsvc.get(db, t.duplicate_of) if t.duplicate_of else None
+        events = await EventLog.page(db, 0, 50, ref=t.id, public_only=not can(p, "read:private", t))
+        team_users = await users.list_users(db) if p.is_team else []
+        owners = await users.token_owners(db) if (notes or proposals) else {}
+        reporter = (
+            (await db.execute(select(Reporter).where(Reporter.id == t.reporter_id))).scalar_one_or_none()
+            if t.reporter_id
+            else None
+        )
+        me = getattr(request.state, "reporter", None)
+        mine = rsvc.owns(me, t)
+        attachments = await rsvc.attachments_for(db, t) if (p.is_team or mine) else []
+    return render(
+        request,
+        "ticket.html",
+        {
+            "p": p,
+            "csrf": csrf,
+            "t": t,
+            "body": body,
+            "messages": messages,
+            "patches": patches,
+            "notes": notes,
+            "proposals": proposals,
+            "replies": replies,
+            "dup": dup,
+            "events": events,
+            "team_users": team_users,
+            "owners": owners,
+            "reporter": reporter,
+            "mine": mine,
+            "attachments": attachments,
+            "can_withdraw": mine and t.status in rsvc.OPEN_FOR_REPORTER,
+            "url": tsvc.ticket_url(c, t),
+            "internal_url": c.settings.internal_url(t.internal_ref),
+            "tier_fields": ("assessed_tier",),
+        },
+    )

@@ -46,7 +46,7 @@ def test_reply_templates_do_not_promise(config):
 
 
 def test_md_paths():
-    assert md_target("/index.md") == "/" and md_target("/bounty/XE-0001.md") == "/bounty/XE-0001"
+    assert md_target("/index.md") == "/" and md_target("/XE-0001.md") == "/XE-0001"
     assert md_target("/v1/export/triage.md") is None and md_target("/scope") is None
     assert md_path("/") == "/index.md" and md_path("/scope") == "/scope.md"
     assert wants_markdown("text/markdown") and not wants_markdown("text/html,text/markdown")
@@ -55,10 +55,10 @@ def test_md_paths():
 def test_html_to_markdown_drops_chrome_and_keeps_table():
     html = """<html><head><title>T</title></head><body><header><nav><a href="/x">nav</a></nav></header>
     <main><h1>Open tickets</h1><form><input></form><table><tr><th>#</th><th>Finding</th></tr>
-    <tr><td><a href="/bounty/XE-0001">XE-0001</a></td><td>A crash</td></tr></table><script>x()</script></main>
+    <tr><td><a href="/XE-0001">XE-0001</a></td><td>A crash</td></tr></table><script>x()</script></main>
     <footer>f</footer></body></html>"""
     md = html_to_markdown(html, "https://bounty.xe.network/")
-    assert "# Open tickets" in md and "A crash" in md and "https://bounty.xe.network/bounty/XE-0001" in md
+    assert "# Open tickets" in md and "A crash" in md and "https://bounty.xe.network/XE-0001" in md
     assert "nav" not in md and "x()" not in md and "<input" not in md
 
 

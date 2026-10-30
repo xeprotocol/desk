@@ -339,3 +339,19 @@ def test_email_cleaning_and_address_checks():
         rsvc.check_address("abc")
     with pytest.raises(HTTPException):
         rsvc.address_of("zz")
+
+
+def test_ticket_url_is_the_bare_id_on_its_front_door():
+    from types import SimpleNamespace
+
+    from desk.services.tickets import ticket_url
+    from desk.ui import TICKET_ID
+
+    ctx = SimpleNamespace(settings=SimpleNamespace(scheme="https", hosts={"bounty": "bounty.xe.network", "support": "support.xe.network"}))
+    assert ticket_url(ctx, SimpleNamespace(kind="bounty", id="XE-0032")) == "https://bounty.xe.network/XE-0032"
+    assert ticket_url(ctx, SimpleNamespace(kind="support", id="XS-0007")) == "https://support.xe.network/XS-0007"
+    # the route only claims paths that look like an id; everything else stays a 404 and never shadows a page
+    for ok in ("XE-0032", "xs-0001", "XE-12345"):
+        assert TICKET_ID.fullmatch(ok)
+    for bad in ("agent", "team", "XE-1", "XE-0032/x", "XQ-0001", "scope"):
+        assert not TICKET_ID.fullmatch(bad)

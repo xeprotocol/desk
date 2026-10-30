@@ -19,7 +19,7 @@
 {% for t in ts %}
 <tr>
   <td class="n">{{ m.tlink(t) }}</td>
-  <td class="title"><a href="/bounty/{{ t.id }}">{{ t.title }}</a></td>
+  <td class="title"><a href="/{{ t.id }}">{{ t.title }}</a></td>
   <td>{{ m.status(t) }}</td>
   <td>{{ m.tier(t.assessed_tier) }}</td>
   <td>{{ m.gate(t.mainnet_gate) }}</td>

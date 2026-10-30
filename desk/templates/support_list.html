@@ -62,7 +62,7 @@
 {% for t in tickets %}
 <tr>
   <td class="n">{{ m.tlink(t) }}{% if t.visibility == "private" %} <span class="pill private">private</span>{% endif %}</td>
-  <td class="title"><a href="/support/{{ t.id }}">{{ t.title }}</a>
+  <td class="title"><a href="/{{ t.id }}">{{ t.title }}</a>
     <span class="k">{% if t.duplicate_of %}same as {{ t.duplicate_of }}{% endif %}{% if team and pend.get(t.id) %} · <span class="pill pending">{{ pend[t.id] }} pending</span>{% endif %}</span></td>
   <td>{{ m.status(t) }}</td>
   <td>{{ cfg.topics.get(t.area, t.area) if t.area else "—" }}</td>

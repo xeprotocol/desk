@@ -544,8 +544,9 @@ async def set_award(
 
 
 def ticket_url(ctx: Context, t: Ticket) -> str:
+    """One canonical URL per ticket: the bare id at the root of its front door, e.g. https://bounty.xe.network/XE-0032."""
     base = f"{ctx.settings.scheme}://{ctx.settings.hosts['bounty' if t.kind == 'bounty' else 'support']}"
-    return f"{base}/{'bounty' if t.kind == 'bounty' else 'support'}/{t.id}"
+    return f"{base}/{t.id}"
 
 
 def to_dict(ctx: Context, t: Ticket, p: Principal, *, with_body: bool = False) -> dict:
