@@ -154,7 +154,8 @@
     });
     const wd = $("#reporter-withdraw");
     if (wd) wd.addEventListener("click", async () => {
-      if (!confirm("Withdraw this? It closes as withdrawn and the team stops work on it.")) return;
+      const ok = window.desk ? await window.desk.ask({ title: "Withdraw this report?", body: "It closes as withdrawn and the team stops work on it.", ok: "Withdraw", danger: true }) : confirm("Withdraw this? It closes as withdrawn and the team stops work on it.");
+      if (!ok) return;
       const body = $("#reporter-reply").value.trim();
       wd.disabled = true;
       try { await api("POST", "/v1/reporter/tickets/" + tid + "/withdraw", { body }); location.reload(); }

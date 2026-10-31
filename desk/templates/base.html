@@ -120,6 +120,17 @@
     <span>·</span><a href="https://xe.network">xe.network</a>
   </div>
 </div></footer>
+<dialog id="desk-dialog" class="dialog" aria-labelledby="desk-dialog-title">
+  <form method="dialog">
+    <h3 id="desk-dialog-title"></h3>
+    <p class="dialog-body"></p>
+    <textarea class="dialog-input" rows="3" style="display:none"></textarea>
+    <div class="row dialog-acts">
+      <button type="button" class="ghost mini" value="cancel">Cancel</button>
+      <button type="button" class="mini" value="ok">Continue</button>
+    </div>
+  </form>
+</dialog>
 {% block scripts %}{% endblock %}
 </body>
 </html>

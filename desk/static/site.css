@@ -314,3 +314,15 @@ td .name[data-rename], td .name[data-instruct] { cursor:text; border-bottom:1px 
 td .name[data-rename]:hover, td .name[data-instruct]:hover { color:var(--brand-text); border-bottom-color:var(--brand); }
 td.instr { max-width:260px; font-size:13px; color:var(--fg-2); }
 .prose.brief table { font-size:14px; } .prose.brief blockquote { font-size:16.5px; color:var(--fg-2); }
+
+/* ---- dialog: the desk's own confirm/prompt, in place of the browser's ------------------------ */
+dialog.dialog { width:min(480px, calc(100vw - 40px)); padding:0; border:1px solid var(--stroke-strong); background:var(--panel); color:var(--text-high); }
+dialog.dialog::backdrop { background:color-mix(in srgb, var(--bg) 70%, transparent); backdrop-filter:blur(2px); }
+dialog.dialog form { padding:24px; margin:0; }
+dialog.dialog h3 { margin:0 0 10px; font-size:18px; }
+dialog.dialog .dialog-body { margin:0; color:var(--fg-2); font-size:15px; line-height:1.5; white-space:pre-wrap; }
+dialog.dialog .dialog-body:empty { display:none; }
+dialog.dialog .dialog-input { margin-top:14px; min-height:84px; font-size:15px; }
+dialog.dialog .dialog-acts { justify-content:flex-end; margin-top:20px; gap:8px; }
+dialog.dialog.danger button[value=ok] { background:var(--negative); border-color:var(--negative); color:#fff; }
+

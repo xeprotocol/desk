@@ -25,6 +25,46 @@
   }
   const reload = () => location.reload();
 
+  // ---- dialog: ask({title, body, ok, cancel, danger, input, value}) -> Promise<bool|string|null>
+  //      tell(title, body) -> Promise<void>. One <dialog> in base.html; never the browser's own boxes.
+  function ask(o) {
+    const d = $("#desk-dialog");
+    if (!d || !d.showModal) return Promise.resolve(o.input !== undefined ? prompt(o.body || o.title, o.value || "") : confirm((o.title || "") + (o.body ? "\n\n" + o.body : "")));
+    const title = $("h3", d), body = $(".dialog-body", d), input = $(".dialog-input", d), okB = $("button[value=ok]", d), cancelB = $("button[value=cancel]", d);
+    title.textContent = o.title || "";
+    body.textContent = o.body || "";
+    okB.textContent = o.ok || "Continue";
+    cancelB.textContent = o.cancel || "Cancel";
+    cancelB.style.display = o.cancel === null ? "none" : "";
+    d.classList.toggle("danger", !!o.danger);
+    const hasInput = o.input !== undefined;
+    input.style.display = hasInput ? "" : "none";
+    input.placeholder = hasInput ? (o.input || "") : "";
+    input.value = hasInput ? (o.value || "") : "";
+    return new Promise((resolve) => {
+      const done = (v) => { cleanup(); if (d.open) d.close(); resolve(v); };
+      const onOk = () => done(hasInput ? input.value : true);
+      const onCancel = () => done(hasInput ? null : false);
+      const onClose = () => done(hasInput ? null : false);
+      const onKey = (e) => { if (e.key === "Enter" && (!hasInput || e.metaKey || e.ctrlKey)) { e.preventDefault(); onOk(); } };
+      function cleanup() { okB.removeEventListener("click", onOk); cancelB.removeEventListener("click", onCancel); d.removeEventListener("close", onClose); d.removeEventListener("keydown", onKey); }
+      okB.addEventListener("click", onOk); cancelB.addEventListener("click", onCancel); d.addEventListener("close", onClose); d.addEventListener("keydown", onKey);
+      d.showModal();
+      (hasInput ? input : okB).focus();
+    });
+  }
+  const tell = (title, body) => ask({ title, body, ok: "OK", cancel: null }).then(() => undefined);
+  window.desk = Object.assign(window.desk || {}, { ask, tell });
+
+  // a one-line note that survives a reload: flash("Award approved.") before reload(), shown on the next page
+  const FLASH = "desk-flash";
+  const flash = (text) => { try { sessionStorage.setItem(FLASH, text); } catch (e) {} };
+  function showFlash(el) {
+    let text = null;
+    try { text = sessionStorage.getItem(FLASH); sessionStorage.removeItem(FLASH); } catch (e) {}
+    if (text) say(el, text, true);
+  }
+
   // ---- shell: theme, cog menu, mobile nav (as on the governance site) -------------------------
   const THEME_KEY = "xe-desk-theme";
   const theme = () => document.documentElement.dataset.theme === "light" ? "light" : "dark";
@@ -128,7 +168,7 @@
       } catch (e) { say(msg, e.message, false); }
     });
     $$("[data-remove-passkey]").forEach(b => b.addEventListener("click", async () => {
-      if (!confirm("Remove this passkey?")) return;
+      if (!await ask({ title: "Remove this passkey?", body: "You can add it again from this page.", ok: "Remove", danger: true })) return;
       try { await api("DELETE", `/v1/auth/passkeys/${b.dataset.removePasskey}`); reload(); } catch (e) { say($("#passkey-msg"), e.message, false); }
     }));
   }
@@ -180,12 +220,12 @@
     });
     $$("[data-instruct]").forEach(el => el.addEventListener("click", async () => {
       const cur = el.getAttribute("title") || "";
-      const next = prompt("Standing instructions for this agent (blank to clear):", cur);
+      const next = await ask({ title: "Standing instructions", body: "What this agent should focus on or leave alone. Blank clears them. They are returned by GET /v1/me and folded into the agent's brief.", input: "Only p2p-sync tickets. Never propose status.", value: cur, ok: "Save" });
       if (next === null || next.trim() === cur.trim()) return;
       try { await api("PATCH", `/v1/team/tokens/${el.dataset.instruct}`, { instructions: next.trim() }); reload(); } catch (e) { say($("#token-msg"), e.message, false); }
     }));
     $$("[data-revoke]").forEach(b => b.addEventListener("click", async () => {
-      if (!confirm("Revoke this token? Calls with it stop at once.")) return;
+      if (!await ask({ title: "Revoke this token?", body: "Calls with it stop at once. This cannot be undone.", ok: "Revoke", danger: true })) return;
       try { await api("DELETE", `/v1/team/tokens/${b.dataset.revoke}`); reload(); } catch (e) { say($("#token-msg"), e.message, false); }
     }));
   }
@@ -209,7 +249,7 @@
     catch (e) { say($("#users-msg"), e.message, false); }
   }));
   $$("[data-rename]").forEach(el => el.addEventListener("click", async () => {
-    const name = prompt("Name on this person's replies:", el.textContent.trim());
+    const name = await ask({ title: "Rename", body: "The name on this person's replies and notes.", input: "Name", value: el.textContent.trim(), ok: "Save" });
     if (name === null || !name.trim()) return;
     try { await api("PATCH", `/v1/team/users/${el.dataset.rename}`, { name: name.trim() }); reload(); }
     catch (e) { say($("#users-msg"), e.message, false); }
@@ -224,6 +264,7 @@
   if (ticketEl) {
     const tid = ticketEl.dataset.ticket, facts = $("#facts"), fmsg = $("#facts-msg");
     const T = (p) => `/v1/team/tickets/${tid}${p}`;
+    showFlash(fmsg);
 
     if ($("#edit-facts")) {
       $("#edit-facts").addEventListener("click", () => facts.classList.add("editing"));
@@ -244,7 +285,7 @@
       $("#set-status").addEventListener("click", async () => {
         const body = { status: statusSel.value };
         if (statusSel.value === "closed") body.closed_reason = reasonSel.value;
-        if (statusSel.value === "disclosed" && !confirm("Disclose: the body leaves the vault and a public issue is opened. Continue?")) return;
+        if (statusSel.value === "disclosed" && !await ask({ title: "Disclose this report?", body: "The body leaves the vault and a public issue is opened. This cannot be undone.", ok: "Disclose", danger: true })) return;
         try { await api("POST", T("/status"), body); reload(); } catch (e) { say(fmsg, e.message, false); }
       });
     }
@@ -255,13 +296,15 @@
         try { await api("POST", T("/award"), { award_xe: Math.round(xe * 1e6) }); reload(); } catch (e) { say(fmsg, e.message, false); }
       });
       $("#approve-award").addEventListener("click", async () => {
-        if (!confirm("Approve this award? It then appears on the leaderboard once the ticket is awarded.")) return;
-        try { await api("POST", T("/award"), { approve: true }); reload(); } catch (e) { say(fmsg, e.message, false); }
+        const xe = $("#award-xe").value;
+        const ok = await ask({ title: `Approve ${xe} XE for ${tid}?`, body: "The award is recorded against you in the log and goes on the treasurer's payout list. The reporter is not told here; set the status to awarded when it is time, and the leaderboard updates then.", ok: "Approve" });
+        if (!ok) return;
+        try { await api("POST", T("/award"), { approve: true }); flash(`Award of ${xe} XE approved.`); reload(); } catch (e) { say(fmsg, e.message, false); }
       });
     }
     if ($("#convert-kind")) $("#convert-kind").addEventListener("click", async () => {
       const to = $("#convert-kind").dataset.to;
-      if (!confirm(`Make this a ${to} ticket? The id and history stay.`)) return;
+      if (!await ask({ title: `Make this a ${to} ticket?`, body: "The id and history stay; the facts that only apply to the other kind are kept but hidden.", ok: `Make ${to}` })) return;
       try { await api("POST", T(`/kind?kind=${to}`)); reload(); } catch (e) { say(fmsg, e.message, false); }
     });
     if ($("#add-patch")) $("#add-patch").addEventListener("click", async () => {
@@ -280,7 +323,7 @@
       $("#send-reply").addEventListener("click", async () => {
         const body = replyBody.value.trim();
         if (!body) return say(rmsg, "write something first", false);
-        if (!confirm("Send this reply in public?")) return;
+        if (!await ask({ title: "Send this reply in public?", body: "It is mirrored to the source channel under your name and cannot be unsent.", ok: "Send" })) return;
         try { await api("POST", T("/replies"), { body }); reload(); } catch (e) { say(rmsg, e.message, false); }
       });
     }
@@ -297,15 +340,15 @@
         const r = await api("POST", `/v1/team/proposals/${b.dataset.adopt}/adopt`, {});
         if (r.reply_draft !== undefined && replyBody) { replyBody.value = r.reply_draft; replyBody.focus(); card.classList.add("adopted"); b.disabled = true; }
         else reload();
-      } catch (e) { say(fmsg, e.message, false); alert(e.message); }
+      } catch (e) { say(fmsg, e.message, false); tell("Could not adopt", e.message); }
     }));
     $$("[data-reject]").forEach(b => b.addEventListener("click", async () => {
-      try { await api("POST", `/v1/team/proposals/${b.dataset.reject}/reject`, {}); reload(); } catch (e) { alert(e.message); }
+      try { await api("POST", `/v1/team/proposals/${b.dataset.reject}/reject`, {}); reload(); } catch (e) { tell("Could not reject", e.message); }
     }));
     if ($("#adopt-all")) $("#adopt-all").addEventListener("click", async () => {
       const ids = $$("[data-adopt]:not([disabled])").filter(b => b.closest(".proposal").dataset.field !== "reply_draft").map(b => parseInt(b.dataset.adopt, 10));
-      if (!ids.length || !confirm(`Adopt ${ids.length} proposals?`)) return;
-      try { await api("POST", "/v1/team/proposals/bulk", { adopt: ids }); reload(); } catch (e) { alert(e.message); }
+      if (!ids.length || !await ask({ title: `Adopt ${ids.length} proposals?`, body: "Reply drafts are left for you to use one at a time.", ok: "Adopt all" })) return;
+      try { await api("POST", "/v1/team/proposals/bulk", { adopt: ids }); reload(); } catch (e) { tell("Could not adopt", e.message); }
     });
   }
 })();

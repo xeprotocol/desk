@@ -70,9 +70,9 @@
   </div>
   {% if can_award and t.kind == "bounty" %}
   <div class="row" style="margin-top:12px">
-    <input type="number" id="award-xe" placeholder="XE" value="{{ (t.award_xe // 1000000) if t.award_xe is not none else '' }}" style="max-width:140px">
-    <button class="ghost mini" id="save-award" type="button">Set award</button>
-    <button class="mini" id="approve-award" type="button" {{ "disabled" if t.award_xe is none }}>Approve</button>
+    <input type="number" id="award-xe" placeholder="XE" value="{{ (t.award_xe // 1000000) if t.award_xe is not none else '' }}" style="max-width:140px" {{ "disabled" if t.award_approved_at }}>
+    <button class="ghost mini" id="save-award" type="button" {{ "disabled" if t.award_approved_at }}>Set award</button>
+    <button class="mini" id="approve-award" type="button" {{ "disabled" if t.award_xe is none or t.award_approved_at }}>{{ "Approved" if t.award_approved_at else "Approve" }}</button>
   </div>
   {% endif %}
   <div class="row" style="margin-top:12px">
