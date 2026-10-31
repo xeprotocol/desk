@@ -34,6 +34,11 @@ class FactsIn(BaseModel):
     reason: str = Field(default="", max_length=500)
 
 
+class ReporterIn(BaseModel):
+    reporter_id: int | None = None
+    email: str | None = Field(default=None, max_length=256)
+
+
 class StatusIn(BaseModel):
     status: str
     closed_reason: str | None = None
@@ -160,6 +165,17 @@ async def reply_template(ctx: Ctx, db: Db, who: Who, request: Request, tid: str,
         or "the linked PR"
     )
     return {"name": name, "body": thread.render_template(ctx, name, t, patch_refs=refs)}
+
+
+@router.post("/tickets/{tid}/reporter")
+async def set_reporter(ctx: Ctx, db: Db, who: Who, request: Request, tid: str, body: ReporterIn):
+    """Attach the reporter to a ticket that arrived without one. Existing reporter by id, or by email."""
+    _team(who, request)
+    t = await tsvc.get_for(db, who.principal, tid)
+    require(who.principal, "facts", t)
+    r = await rsvc.attach(ctx, db, who.principal, t, reporter_id=body.reporter_id, email=body.email)
+    await db.commit()
+    return {"ticket": t.id, "reporter_id": r.id, "reporter": rsvc.label(r)}
 
 
 @router.post("/tickets/{tid}/award")

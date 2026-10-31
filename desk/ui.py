@@ -528,6 +528,7 @@ async def ticket_page(request: Request, tid: str):
         events = await EventLog.page(db, 0, 50, ref=t.id, public_only=not can(p, "read:private", t))
         team_users = await users.list_users(db) if p.is_team else []
         owners = await users.token_owners(db) if (notes or proposals) else {}
+        reporters = await rsvc.list_for_picker(db) if p.is_team else []
         reporter = (
             (await db.execute(select(Reporter).where(Reporter.id == t.reporter_id))).scalar_one_or_none()
             if t.reporter_id
@@ -554,6 +555,7 @@ async def ticket_page(request: Request, tid: str):
             "team_users": team_users,
             "owners": owners,
             "reporter": reporter,
+            "reporters": reporters,
             "mine": mine,
             "attachments": attachments,
             "can_withdraw": mine and t.status in rsvc.OPEN_FOR_REPORTER,

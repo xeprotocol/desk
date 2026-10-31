@@ -40,6 +40,7 @@
       {% if team %}<input class="edit" type="text" name="internal_ref" value="{{ t.internal_ref }}" placeholder="#1047 or faucet#10">{% endif %}</dd>
     {% endif %}
     {% if team %}
+    <dt>Reporter</dt><dd>{% if reporter %}{{ reporter.display_name or reporter.github_login or reporter.email or ("reporter " ~ reporter.id) }}{% if reporter.email %} <span class="k">{{ reporter.email }}</span>{% elif reporter.github_login %} <span class="k">@{{ reporter.github_login }}</span>{% endif %}{% else %}<span class="k">none: awards and payouts need one</span>{% endif %}</dd>
     <dt>Assignee</dt><dd><span class="show">{% for u in team_users if u.id == t.assignee_id %}{{ u.name or u.email }}{% else %}—{% endfor %}</span>
       <select class="edit" name="assignee_id"><option value="">—</option>{% for u in team_users %}<option value="{{ u.id }}" {{ "selected" if t.assignee_id == u.id }}>{{ u.name or u.email }}</option>{% endfor %}</select></dd>
     {% endif %}
@@ -75,6 +76,14 @@
     <button class="mini" id="approve-award" type="button" {{ "disabled" if t.award_xe is none or t.award_approved_at }}>{{ "Approved" if t.award_approved_at else "Approve" }}</button>
   </div>
   {% endif %}
+  <div class="row" style="margin-top:12px" id="reporter-row">
+    <select id="reporter-pick" style="max-width:220px">
+      <option value="">{{ "Change reporter…" if reporter else "Attach reporter…" }}</option>
+      {% for r in reporters if not reporter or r.id != reporter.id %}<option value="{{ r.id }}">{{ r.display_name or r.github_login or r.email or r.id }}{% if r.email %} · {{ r.email }}{% elif r.github_login %} · @{{ r.github_login }}{% endif %}</option>{% endfor %}
+    </select>
+    <input type="text" id="reporter-email" placeholder="or their email" style="max-width:220px">
+    <button class="ghost mini" id="attach-reporter" type="button">Attach</button>
+  </div>
   <div class="row" style="margin-top:12px">
     <button class="ghost mini" id="convert-kind" type="button" data-to="{{ 'support' if t.kind == 'bounty' else 'bounty' }}">Make {{ 'support' if t.kind == 'bounty' else 'bounty' }}</button>
   </div>

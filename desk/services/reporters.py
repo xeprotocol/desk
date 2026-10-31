@@ -76,6 +76,68 @@ def clean_email(email: str) -> str:
     return e
 
 
+# ---- the team attaches a reporter ------------------------------------------------------------------------
+
+
+def label(r: Reporter) -> str:
+    """How a reporter is named in team-facing lists."""
+    local = r.email.split("@")[0] if r.email else ""
+    who = r.display_name or r.github_login or local or f"reporter {r.id}"
+    via = r.email or (f"@{r.github_login}" if r.github_login else "") or r.xe_address[:12]
+    return f"{who} ({via})" if via and via != who else who
+
+
+async def list_for_picker(db: AsyncSession, limit: int = 300) -> list[Reporter]:
+    q = select(Reporter).order_by(Reporter.display_name, Reporter.github_login, Reporter.email).limit(limit)
+    return list((await db.execute(q)).scalars().all())
+
+
+async def attach(
+    ctx: Context,
+    db: AsyncSession,
+    p: Principal,
+    t: Ticket,
+    *,
+    reporter_id: int | None = None,
+    email: str | None = None,
+) -> Reporter:
+    """Put a reporter on a ticket that arrived without one (an emailed report, a triage import). Either an
+    existing reporter, or an email: the desk finds the reporter with that email or creates one, so that when
+    they sign in with it their tickets and payout binding are already there. Logged, with the previous value."""
+    if reporter_id is not None:
+        r = (await db.execute(select(Reporter).where(Reporter.id == reporter_id))).scalar_one_or_none()
+        if r is None:
+            raise HTTPException(404, "no such reporter")
+        how = "picked"
+    elif email:
+        e = clean_email(email)
+        r = await by_email(db, e)
+        how = "email"
+        if r is None:
+            r = Reporter(email=e, display_name=e.split("@")[0])
+            db.add(r)
+            await db.flush()
+            await ctx.events.append(
+                db, "reporter.created", p.actor, {"how": "team", "ticket": t.id}, public=False
+            )
+            how = "email-new"
+    else:
+        raise HTTPException(400, "give a reporter_id or an email")
+    if t.reporter_id == r.id:
+        return r
+    prev = t.reporter_id
+    t.reporter_id = r.id
+    await ctx.events.append(
+        db,
+        "ticket.reporter",
+        p.actor,
+        {"ticket": t.id, "from": prev, "to": r.id, "how": how},
+        ref=t.id,
+        public=False,
+    )
+    return r
+
+
 # ---- sign-in: find or create, and link -------------------------------------------------------------------
 
 

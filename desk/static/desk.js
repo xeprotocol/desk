@@ -302,6 +302,16 @@
         try { await api("POST", T("/award"), { approve: true }); flash(`Award of ${xe} XE approved.`); reload(); } catch (e) { say(fmsg, e.message, false); }
       });
     }
+    if ($("#attach-reporter")) $("#attach-reporter").addEventListener("click", async () => {
+      const id = $("#reporter-pick").value, email = $("#reporter-email").value.trim();
+      if (!id && !email) return say(fmsg, "pick a reporter or enter their email", false);
+      const body = id ? { reporter_id: parseInt(id, 10) } : { email };
+      try {
+        const r = await api("POST", T("/reporter"), body);
+        flash(`Reporter set to ${r.reporter}. When they sign in with that identity, this ticket is theirs.`);
+        reload();
+      } catch (e) { say(fmsg, e.message, false); }
+    });
     if ($("#convert-kind")) $("#convert-kind").addEventListener("click", async () => {
       const to = $("#convert-kind").dataset.to;
       if (!await ask({ title: `Make this a ${to} ticket?`, body: "The id and history stay; the facts that only apply to the other kind are kept but hidden.", ok: `Make ${to}` })) return;
