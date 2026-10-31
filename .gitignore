@@ -11,3 +11,5 @@ dist/
 .DS_Store
 # the triage doc carries the private email reports; it lives outside the repo (secrets/ or a local copy)
 docs/BOUNTY_TRIAGE.md
+# legal drafts stay out of the public repo
+docs/XE_MICA_WHITE_PAPER.md
