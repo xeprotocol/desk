@@ -17,7 +17,7 @@ from markdownify import MarkdownConverter
 from .config import Config
 
 SKIP_PREFIXES = ("/v1", "/static")
-DROP = ("script", "style", "template", "form", "button", "input", "textarea", "select", "noscript")
+DROP = ("script", "style", "template", "form", "button", "input", "textarea", "select", "noscript", "dialog")
 DROP_CLASSES = ("keybox",)
 
 
