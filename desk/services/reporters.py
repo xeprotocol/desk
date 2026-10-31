@@ -103,7 +103,7 @@ async def attach(
 ) -> Reporter:
     """Put a reporter on a ticket that arrived without one (an emailed report, a triage import). Either an
     existing reporter, or an email: the desk finds the reporter with that email or creates one, so that when
-    they sign in with it their tickets and payout binding are already there. Logged, with the previous value."""
+    they sign in with it their tickets and payout binding are already there. Logged with the old value."""
     if reporter_id is not None:
         r = (await db.execute(select(Reporter).where(Reporter.id == reporter_id))).scalar_one_or_none()
         if r is None:
