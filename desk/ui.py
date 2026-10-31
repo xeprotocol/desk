@@ -15,7 +15,7 @@ from markdown_it import MarkdownIt
 from markupsafe import Markup, escape
 from sqlalchemy import select
 
-from . import __version__
+from . import __version__, brand
 from .auth import resolve
 from .authz import ANON, Principal, can
 from .brief import build_agent_brief
@@ -92,6 +92,7 @@ def _asset_version() -> str:
 
 ASSET_V = _asset_version()
 templates.env.globals["asset"] = lambda path: f"{path}?v={ASSET_V}"
+templates.env.globals["brand"] = brand
 templates.env.filters["esc"] = escape
 
 
@@ -126,12 +127,37 @@ async def principal(db, request: Request) -> tuple[Principal, str]:
     return a.principal, a.csrf
 
 
+# Which social card a page gets. Anything not listed, and every team page, gets the site card.
+OG_PAGES = {"/": "index", "/scope": "scope", "/leaderboard": "leaderboard", "/log": "log", "/agent": "agent"}
+OG_PAGES |= {"/report": "report", "/ask": "ask", "/live": "live"}
+
+
+def og_default(c, request: Request, site: str, copy: dict) -> dict:
+    """The og:* set for a page: absolute URLs, since crawlers fetch the image without a base."""
+    base = site_url(c, site)
+    sc = (copy.get("support") or {}) if site == "support" else copy
+    name = copy.get("support_name" if site == "support" else "bounty_name", copy.get("site_name"))
+    slug = OG_PAGES.get(request.url.path, "index")
+    card = ((sc.get("cards") or {}).get(slug) or {}) if slug != "index" else {}
+    return {
+        "title": card.get("title") or name,
+        "description": card.get("line") or sc.get("footer_line", ""),
+        "image": f"{base}/og/page/{slug}.png?v={c.config.hashes.get('copy/public.yaml', '')[:10]}",
+        "url": f"{base}{request.url.path}",
+        "site_name": name,
+    }
+
+
 def render(request: Request, name: str, ctx: dict, status_code: int = 200) -> HTMLResponse:
     c = get_context()
     p: Principal = ctx.get("p") or ANON
     site = site_for(request)
     copy = c.config.copy_public
+    og = og_default(c, request, site, copy)
+    if "og" in ctx:
+        og = {**og, **ctx.pop("og")}
     base = {
+        "og": og,
         "request": request,
         "copy": copy,
         "cfg": c.config,
@@ -537,6 +563,17 @@ async def ticket_page(request: Request, tid: str):
         me = getattr(request.state, "reporter", None)
         mine = rsvc.owns(me, t)
         attachments = await rsvc.attachments_for(db, t) if (p.is_team or mine) else []
+    og = {}
+    if t.visibility == "public":
+        labels = c.config.copy_public.get("labels") or {}
+        bits = [labels.get(t.status, t.status)]
+        if t.kind == "bounty" and t.assessed_tier:
+            bits.insert(0, c.config.tier_label(t.assessed_tier))
+        og = {
+            "title": f"{t.id} · {t.title}",
+            "description": " · ".join(bits),
+            "image": f"{site_url(c, t.kind)}/og/{t.id}.png?v={int(t.updated_at.timestamp())}",
+        }
     return render(
         request,
         "ticket.html",
@@ -544,6 +581,7 @@ async def ticket_page(request: Request, tid: str):
             "p": p,
             "csrf": csrf,
             "t": t,
+            "og": og,
             "body": body,
             "messages": messages,
             "patches": patches,

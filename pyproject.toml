@@ -32,6 +32,7 @@ dependencies = [
   "discord.py>=2.4",
   # beyond the harness list; justified in docs/DESK_BRIEF.md §14
   "webauthn>=2.0",
+  "pillow>=10.4",
 ]
 
 [project.optional-dependencies]
@@ -48,7 +49,7 @@ desk = "desk.cli:app"
 include = ["desk*", "xe*"]
 
 [tool.setuptools.package-data]
-desk = ["templates/*.html", "static/*"]
+desk = ["templates/*.html", "static/*", "static/fonts/*"]
 
 [tool.ruff]
 line-length = 110

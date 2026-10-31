@@ -7,6 +7,20 @@
 <meta name="referrer" content="no-referrer">
 {% if csrf %}<meta name="desk-csrf" content="{{ csrf }}">{% endif %}
 <title>{% block title %}{{ site_name }}{% endblock %} · {{ badge }}</title>
+<meta name="description" content="{{ og.description }}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="{{ og.site_name }}">
+<meta property="og:title" content="{{ og.title }}">
+<meta property="og:description" content="{{ og.description }}">
+<meta property="og:url" content="{{ og.url }}">
+<meta property="og:image" content="{{ og.image }}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="{{ og.title }} · {{ og.site_name }}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ og.title }}">
+<meta name="twitter:description" content="{{ og.description }}">
+<meta name="twitter:image" content="{{ og.image }}">
 <script>(function(){try{var t=localStorage.getItem("xe-desk-theme");if(t!=="light"&&t!=="dark"){t=matchMedia("(prefers-color-scheme: light)").matches?"light":"dark"}document.documentElement.dataset.theme=t;var m=document.querySelector('meta[name="theme-color"]');if(m)m.content=t==="light"?"#fafafa":"#0a0a0a"}catch(e){}})();</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

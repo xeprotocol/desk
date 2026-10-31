@@ -13,6 +13,26 @@ footer: XE Network
 footer_line: The bounty desk for the agent-native network, run in the open.
 kicker: Bounty
 punchline: Read in private. Answered in public. Paid at genesis.
+# Social cards (og:image) for the fixed pages: a title and one line each. Tickets draw their own.
+cards:
+  scope:
+    title: Scope and tiers
+    line: What is in scope, how severity is tiered, and the ceiling each tier pays in XE.
+  leaderboard:
+    title: Leaderboard
+    line: Researchers ranked by XE awarded for valid, fixed findings.
+  log:
+    title: Log
+    line: Every public action on the desk, hash-chained and signed by the desk's key.
+  agent:
+    title: Agent brief
+    line: How an LLM with a team token reads, proposes and leaves notes on the desk.
+  report:
+    title: Report a bug
+    line: Private on arrival, read by the team alone until a fix ships, then disclosed.
+  live:
+    title: Live log
+    line: The desk's public log as it happens.
 # Pointer shown on the bounty site, for people who arrived with a question rather than a bug.
 bounty_crosslink: >-
   Not a bug? Questions about XE, the launch, wallets, keys or getting started go to {support_url}.
@@ -28,6 +48,16 @@ support:
     Ask here; the team answers in public, the answer stays, and the next person with the same question
     finds it before they need to ask.
   footer_line: Community support for the agent-native network, run in the open.
+  cards:
+    log:
+      title: Log
+      line: Every public action on the desk, hash-chained and signed by the desk's key.
+    ask:
+      title: Ask a question
+      line: Asked once, answered in public, kept for the next person.
+    live:
+      title: Live log
+      line: The desk's public log as it happens.
   crosslink: >-
     Found a way to break the network, steal funds or forge a transaction? That is a security bug, and
     it goes to the bounty at {bounty_url}, in private. Do not post it here.
